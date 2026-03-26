@@ -121,7 +121,7 @@ primer_config_get() {
   else
     # Simple fallback: handle single-level and two-level keys
     local leaf="${key##*.}"
-    grep -E "^\s*${leaf}:" "$Primer_CONFIG_FILE" 2>/dev/null | head -1 | sed 's/^[^:]*:\s*//' | sed 's/\s*$//'
+    grep -E "^\s*${leaf}:" "$Primer_CONFIG_FILE" 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//' | sed 's/[[:space:]]*$//' | sed 's/^"//' | sed 's/"$//'
   fi
 }
 

@@ -114,8 +114,12 @@ _kpl_glob_match() {
   [[ "$path" =~ $re ]]
 }
 
+# Field separator for entry parsing (ASCII Unit Separator, safe for arbitrary text)
+_KPL_FS=$'\x1f'
+
 # Parse all entries from a TOML file (gotchas, constraints, failures).
-# Outputs: id|summary|applies_to|severity|date per entry
+# Outputs: id<FS>summary<FS>applies_to<FS>severity<FS>date per entry
+# where <FS> is ASCII Unit Separator (0x1F) to avoid conflicts with | in summaries.
 _kpl_parse_entries() {
   local file="$1"
   [[ -f "$file" ]] || return 0
@@ -129,7 +133,7 @@ _kpl_parse_entries() {
     if [[ "$line" =~ ^\[([a-zA-Z0-9_-]+)\] ]]; then
       # Flush previous entry
       if [[ -n "$current_id" && -n "$summary" ]]; then
-        echo "${current_id}|${summary}|${applies_to}|${severity}|${date}"
+        printf '%s\n' "${current_id}${_KPL_FS}${summary}${_KPL_FS}${applies_to}${_KPL_FS}${severity}${_KPL_FS}${date}"
       fi
       summary="" applies_to="" severity="" date=""
       current_id="${BASH_REMATCH[1]}"
@@ -150,7 +154,7 @@ _kpl_parse_entries() {
   done < "$file"
   # Flush last entry
   if [[ -n "$current_id" && -n "$summary" ]]; then
-    echo "${current_id}|${summary}|${applies_to}|${severity}|${date}"
+    printf '%s\n' "${current_id}${_KPL_FS}${summary}${_KPL_FS}${applies_to}${_KPL_FS}${severity}${_KPL_FS}${date}"
   fi
 }
 
@@ -246,6 +250,12 @@ primer_kpl_add() {
 
   [[ -f "$target/manifest.toml" ]] || { echo "KPL not initialized. Run primer_kpl_init first." >&2; return 1; }
 
+  # Validate ID: must be a valid TOML bare key (alphanumeric, hyphens, underscores only)
+  if [[ ! "$id" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Invalid id: '$id'. Use only alphanumeric characters, hyphens, and underscores (no spaces or dots)." >&2
+    return 1
+  fi
+
   if [[ "$type" == "decision" ]]; then
     local adr_file="$target/decisions/${id}.md"
     if [[ -f "$adr_file" ]]; then
@@ -274,6 +284,12 @@ primer_kpl_add() {
     failure)    toml_file="$target/failures.toml" ;;
     *) echo "Unknown type: $type. Use gotcha|constraint|failure|decision." >&2; return 1 ;;
   esac
+
+  # Check for duplicate entry ID in the target TOML file
+  if [[ -f "$toml_file" ]] && grep -qE "^\[${id}\]" "$toml_file" 2>/dev/null; then
+    echo "Conflict: $type '$id' already exists in $(basename "$toml_file"). Skipping duplicate." >&2
+    return 2
+  fi
 
   # Build applies_to array string
   local applies_arr=""
@@ -321,7 +337,7 @@ primer_kpl_query() {
   local toml_file
   for toml_file in "$target/gotchas.toml" "$target/constraints.toml" "$target/failures.toml"; do
     [[ -f "$toml_file" ]] || continue
-    while IFS='|' read -r eid esummary eapplies eseverity edate; do
+    while IFS="$_KPL_FS" read -r eid esummary eapplies eseverity edate; do
       [[ -z "$eid" ]] && continue
       # Check each query path against each applies_to glob
       local -a globs
@@ -338,7 +354,7 @@ primer_kpl_query() {
       if [[ $matched -eq 1 ]]; then
         local rank
         rank=$(_kpl_severity_rank "$eseverity")
-        results+=("${rank}|${eid}|${esummary}|${eseverity}|${edate}")
+        results+=("${rank}${_KPL_FS}${eid}${_KPL_FS}${esummary}${_KPL_FS}${eseverity}${_KPL_FS}${edate}")
       fi
     done < <(_kpl_parse_entries "$toml_file")
   done
@@ -366,7 +382,7 @@ primer_kpl_query() {
       if [[ $matched -eq 1 ]]; then
         local rank
         rank=$(_kpl_severity_rank "$eseverity")
-        results+=("${rank}|${eid}|${esummary}|${eseverity}|decision")
+        results+=("${rank}${_KPL_FS}${eid}${_KPL_FS}${esummary}${_KPL_FS}${eseverity}${_KPL_FS}decision")
       fi
     fi
   done < "$target/manifest.toml"
@@ -377,7 +393,7 @@ primer_kpl_query() {
   fi
 
   # Sort by severity rank
-  printf '%s\n' "${results[@]}" | sort -t'|' -k1,1n | while IFS='|' read -r _ eid esummary eseverity eextra; do
+  printf '%s\n' "${results[@]}" | sort -t"$_KPL_FS" -k1,1n | while IFS="$_KPL_FS" read -r _ eid esummary eseverity eextra; do
     printf "[%s] %-8s %s" "$eseverity" "$eid" "$esummary"
     [[ -n "$eextra" ]] && printf " (%s)" "$eextra"
     printf "\n"
@@ -518,7 +534,7 @@ primer_kpl_inject() {
       constraints) ftype="constraint" ;;
       failures) ftype="failure" ;;
     esac
-    while IFS='|' read -r eid esummary eapplies eseverity edate; do
+    while IFS="$_KPL_FS" read -r eid esummary eapplies eseverity edate; do
       [[ -z "$eid" ]] && continue
       IFS=',' read -ra globs <<< "$eapplies"
       local matched=0
@@ -533,7 +549,7 @@ primer_kpl_inject() {
       if [[ $matched -eq 1 ]]; then
         local rank
         rank=$(_kpl_severity_rank "$eseverity")
-        matched_entries+=("${rank}|${ftype}|${eid}|${esummary}|${eseverity}")
+        matched_entries+=("${rank}${_KPL_FS}${ftype}${_KPL_FS}${eid}${_KPL_FS}${esummary}${_KPL_FS}${eseverity}")
       fi
     done < <(_kpl_parse_entries "$toml_file")
   done
@@ -561,7 +577,7 @@ primer_kpl_inject() {
       if [[ $matched -eq 1 ]]; then
         local rank
         rank=$(_kpl_severity_rank "$eseverity")
-        matched_entries+=("${rank}|decision|${eid}|${esummary}|${eseverity}")
+        matched_entries+=("${rank}${_KPL_FS}decision${_KPL_FS}${eid}${_KPL_FS}${esummary}${_KPL_FS}${eseverity}")
       fi
     fi
   done < "$target/manifest.toml"
@@ -571,7 +587,7 @@ primer_kpl_inject() {
   if [[ ${#matched_entries[@]} -gt 0 ]]; then
     while IFS= read -r line; do
       sorted_entries+=("$line")
-    done < <(printf '%s\n' "${matched_entries[@]}" | sort -t'|' -k1,1n)
+    done < <(printf '%s\n' "${matched_entries[@]}" | sort -t"$_KPL_FS" -k1,1n)
   fi
 
   # Build tier1 output within budget
@@ -579,7 +595,7 @@ primer_kpl_inject() {
   local tier1_tokens=0
 
   for entry in ${sorted_entries[@]+"${sorted_entries[@]}"}; do
-    IFS='|' read -r _ etype eid esummary eseverity <<< "$entry"
+    IFS="$_KPL_FS" read -r _ etype eid esummary eseverity <<< "$entry"
     local line_out=""
     case "$format" in
       claude-md)

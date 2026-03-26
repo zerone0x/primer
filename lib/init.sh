@@ -20,8 +20,8 @@ primer_list_templates() {
     local yaml="$tdir/.ai/project.yaml"
     if [[ -f "$yaml" ]]; then
       local lang="" framework=""
-      lang=$(grep -E '^\s+language:' "$yaml" 2>/dev/null | head -1 | sed 's/^[^:]*:\s*//' | sed 's/[[:space:]]*$//' | tr -d '"')
-      framework=$(grep -E '^\s+framework:' "$yaml" 2>/dev/null | head -1 | sed 's/^[^:]*:\s*//' | sed 's/[[:space:]]*$//' | tr -d '"')
+      lang=$(grep -E '^\s+language:' "$yaml" 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//' | sed 's/[[:space:]]*$//' | tr -d '"')
+      framework=$(grep -E '^\s+framework:' "$yaml" 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//' | sed 's/[[:space:]]*$//' | tr -d '"')
       [[ -n "$lang" ]] && desc="$lang"
       [[ -n "$framework" ]] && desc="${desc:+$desc / }$framework"
     fi
@@ -178,15 +178,21 @@ primer_init() {
   today=$(date -u +"%Y-%m-%d")
 
   if [[ -f "$template_dir/.ai/project.yaml" ]]; then
-    # Replace placeholder values
-    # Escape sed special characters in user-provided strings
+    # Replace placeholder values safely by processing line-by-line.
+    # Escape double quotes in user-provided strings for valid YAML.
+    # Strip newlines to prevent multi-line injection.
     local safe_name safe_desc
-    safe_name=$(printf '%s' "$project_name" | sed 's/[&/\]/\\&/g')
-    safe_desc=$(printf '%s' "$project_desc" | sed 's/[&/\]/\\&/g')
-    sed \
-      -e "s/^  name: \"\".*$/  name: \"$safe_name\"/" \
-      -e "s/^  description: \"\".*$/  description: \"$safe_desc\"/" \
-      "$template_dir/.ai/project.yaml" > "$ai_dir/project.yaml"
+    safe_name=$(printf '%s' "$project_name" | tr -d '\n' | sed 's/"/\\"/g')
+    safe_desc=$(printf '%s' "$project_desc" | tr -d '\n' | sed 's/"/\\"/g')
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^([[:space:]]*)name:[[:space:]]*\"\" ]]; then
+        echo "${BASH_REMATCH[1]}name: \"$safe_name\""
+      elif [[ "$line" =~ ^([[:space:]]*)description:[[:space:]]*\"\" ]]; then
+        echo "${BASH_REMATCH[1]}description: \"$safe_desc\""
+      else
+        echo "$line"
+      fi
+    done < "$template_dir/.ai/project.yaml" > "$ai_dir/project.yaml"
   fi
 
   primer_success "Created .ai/ from template '$template'"

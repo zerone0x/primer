@@ -46,7 +46,7 @@ cmd_init() {
   local list_only=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --template|-t) template="$2"; shift 2 ;;
+      --template|-t) [[ $# -lt 2 ]] && primer_die "--template requires a value"; template="$2"; shift 2 ;;
       --list|-l) list_only=1; shift ;;
       --help|-h)
         echo "Usage: primer init [--template NAME] [--list]"
@@ -188,7 +188,7 @@ cmd_validate() {
 
   # Check required fields
   if [[ -n "${Primer_CONFIG_FILE:-}" ]]; then
-    local name; name=$(primer_config_get "project.name" 2>/dev/null)
+    local name; name=$(primer_config_get "project.name" 2>/dev/null) || true
     if [[ -z "$name" || "$name" == "null" ]]; then
       primer_error "Missing required field: project.name"
       errors=$((errors + 1))
@@ -227,6 +227,10 @@ cmd_budget() {
     return 0
   fi
 
+  if [[ ${#Primer_SOURCES[@]:-0} -eq 0 ]]; then
+    primer_warn "No .ai/ sources found. Run 'primer init' first."
+    return 0
+  fi
   local total=0
   for src in "${Primer_SOURCES[@]}"; do
     local sz=0
@@ -251,8 +255,8 @@ cmd_log() {
   local agent="" since=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --agent) agent="$2"; shift 2 ;;
-      --since) since="$2"; shift 2 ;;
+      --agent) [[ $# -lt 2 ]] && primer_die "--agent requires a value"; agent="$2"; shift 2 ;;
+      --since) [[ $# -lt 2 ]] && primer_die "--since requires a value"; since="$2"; shift 2 ;;
       --help|-h)
         echo "Usage: primer log [--agent NAME] [--since DATE]"
         echo

@@ -11,6 +11,10 @@ primer_evolve() {
   [[ "${1:-}" == "--auto" ]] && auto=1
 
   local ai_dir=""
+  if [[ ${#Primer_SOURCES[@]:-0} -eq 0 ]]; then
+    primer_info "No .ai/ sources found. Nothing to evolve."
+    return 0
+  fi
   for src in "${Primer_SOURCES[@]}"; do
     if [[ -d "$src/evolution/proposals" ]]; then
       ai_dir="$src"
@@ -108,39 +112,97 @@ primer_evolve() {
       pagent=$(jq -r '.agent // empty' "$pfile" 2>/dev/null) || true
       change_id=$(jq -r '.change.id // empty' "$pfile" 2>/dev/null) || true
       change_summary=$(jq -r '.change.summary // empty' "$pfile" 2>/dev/null) || true
-      change_applies=$(jq -r '.change.applies_to // [] | join(",")' "$pfile" 2>/dev/null) || true
+      change_applies=$(jq -r '.change.applies_to // "" | if type == "array" then join(",") else . end' "$pfile" 2>/dev/null) || true
       change_severity=$(jq -r '.change.severity // "medium"' "$pfile" 2>/dev/null) || true
+    fi
+
+    # Map proposal type to trust target section
+    local trust_target=""
+    case "$ptype" in
+      add_gotcha)     trust_target="gotchas" ;;
+      add_constraint) trust_target="constraints" ;;
+      add_failure)    trust_target="knowledge" ;;
+      add_decision)   trust_target="knowledge" ;;
+      *)              trust_target="knowledge" ;;
+    esac
+
+    # Enforce trust policy if a trust-policy.yaml exists
+    if [[ -n "$pagent" && -n "$trust_target" ]]; then
+      local trust_result=""
+      trust_result=$(_primer_evolve_trust_check "$pagent" "$trust_target") || true
+      if [[ "$trust_result" == "denied" ]]; then
+        primer_warn "Trust policy denied: agent '$pagent' cannot modify '$trust_target'"
+        primer_warn "Skipping $pname (move to .ai/evolution/proposals/ and apply as 'human' to override)"
+        skipped=$((skipped + 1))
+
+        # Log the rejection
+        local ts
+        ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        primer_log_entry "$(jq -n \
+          --arg ts "$ts" \
+          --arg file "$pname" \
+          --arg agent "${pagent:-unknown}" \
+          --arg type "${ptype:-unknown}" \
+          --arg action "denied" \
+          --arg reason "trust_policy" \
+          '{timestamp: $ts, file: $file, agent: $agent, type: $type, action: $action, reason: $reason}' 2>/dev/null \
+        || echo "{\"timestamp\":\"$ts\",\"file\":\"$pname\",\"agent\":\"${pagent:-unknown}\",\"type\":\"${ptype:-unknown}\",\"action\":\"denied\",\"reason\":\"trust_policy\"}")"
+
+        # Move denied proposal to rejected directory
+        local rejected_dir="$ai_dir/evolution/rejected"
+        mkdir -p "$rejected_dir"
+        mv "$pfile" "$rejected_dir/$pname"
+        continue
+      fi
     fi
 
     # Execute the change based on type
     if [[ -n "$ptype" && -n "$change_id" && -n "$change_summary" ]]; then
       local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
       export Primer_KPL_DIR="$ai_dir/knowledge"
+      local kpl_rc=0
+      local kpl_type=""
       case "$ptype" in
-        add_gotcha)
-          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
-            primer_kpl_add "gotcha" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
-          fi
-          ;;
-        add_constraint)
-          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
-            primer_kpl_add "constraint" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
-          fi
-          ;;
-        add_failure)
-          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
-            primer_kpl_add "failure" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
-          fi
-          ;;
-        add_decision)
-          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
-            primer_kpl_add "decision" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
-          fi
-          ;;
+        add_gotcha)     kpl_type="gotcha" ;;
+        add_constraint) kpl_type="constraint" ;;
+        add_failure)    kpl_type="failure" ;;
+        add_decision)   kpl_type="decision" ;;
         *)
           primer_info "  Unknown proposal type '$ptype' — moved to applied without action"
           ;;
       esac
+
+      if [[ -n "$kpl_type" && -f "$Primer_KPL_DIR/manifest.toml" ]]; then
+        local kpl_output=""
+        kpl_output=$(primer_kpl_add "$kpl_type" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>&1) && kpl_rc=$? || kpl_rc=$?
+        if [[ $kpl_rc -eq 2 ]]; then
+          primer_warn "Conflict: entry '$change_id' already exists — skipping $pname"
+          skipped=$((skipped + 1))
+
+          # Log the conflict
+          local ts
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          primer_log_entry "$(jq -n \
+            --arg ts "$ts" \
+            --arg file "$pname" \
+            --arg agent "${pagent:-unknown}" \
+            --arg type "${ptype:-unknown}" \
+            --arg action "conflict" \
+            --arg reason "duplicate_id:$change_id" \
+            '{timestamp: $ts, file: $file, agent: $agent, type: $type, action: $action, reason: $reason}' 2>/dev/null \
+          || echo "{\"timestamp\":\"$ts\",\"file\":\"$pname\",\"agent\":\"${pagent:-unknown}\",\"type\":\"${ptype:-unknown}\",\"action\":\"conflict\",\"reason\":\"duplicate_id:$change_id\"}")"
+
+          # Move conflicting proposal to rejected
+          local rejected_dir="$ai_dir/evolution/rejected"
+          mkdir -p "$rejected_dir"
+          mv "$pfile" "$rejected_dir/$pname"
+          continue
+        elif [[ $kpl_rc -ne 0 ]]; then
+          primer_warn "Failed to add $kpl_type: $kpl_output"
+        else
+          echo "$kpl_output"
+        fi
+      fi
     fi
 
     # Log the application
@@ -149,9 +211,11 @@ primer_evolve() {
     primer_log_entry "$(jq -n \
       --arg ts "$ts" \
       --arg file "$pname" \
+      --arg agent "${pagent:-unknown}" \
+      --arg type "${ptype:-unknown}" \
       --arg action "applied" \
-      '{timestamp: $ts, file: $file, action: $action}' 2>/dev/null \
-    || echo "{\"timestamp\":\"$ts\",\"file\":\"$pname\",\"action\":\"applied\"}")"
+      '{timestamp: $ts, file: $file, agent: $agent, type: $type, action: $action}' 2>/dev/null \
+    || echo "{\"timestamp\":\"$ts\",\"file\":\"$pname\",\"agent\":\"${pagent:-unknown}\",\"type\":\"${ptype:-unknown}\",\"action\":\"applied\"}")"
 
     # Move proposal to applied
     local applied_dir="$ai_dir/evolution/applied"
@@ -245,6 +309,7 @@ primer_log_query() {
     esac
   done
 
+  [[ ${#Primer_SOURCES[@]:-0} -eq 0 ]] && return 0
   for src in "${Primer_SOURCES[@]}"; do
     local logfile="$src/evolution/log.jsonl"
     [[ -f "$logfile" ]] || continue
@@ -271,4 +336,150 @@ primer_log_query() {
       fi
     fi
   done
+}
+
+# ---------------------------------------------------------------------------
+# Trust policy enforcement for evolution
+# ---------------------------------------------------------------------------
+
+# Find trust-policy.yaml: check project .ai/ first, then ~/.ai/
+_primer_evolve_find_trust_policy() {
+  for src in "${Primer_SOURCES[@]}"; do
+    local f="$src/trust-policy.yaml"
+    [[ -f "$f" ]] && { echo "$f"; return 0; }
+  done
+  local global="$HOME/.ai/trust-policy.yaml"
+  [[ -f "$global" ]] && { echo "$global"; return 0; }
+  return 1
+}
+
+# Check trust policy for an agent modifying a target section.
+# $1 = agent name
+# $2 = target section (gotchas, constraints, knowledge, skills, etc.)
+# Prints: "allowed" or "denied"
+_primer_evolve_trust_check() {
+  local agent="${1:?agent required}"
+  local target="${2:?target required}"
+
+  local policy_file
+  policy_file=$(_primer_evolve_find_trust_policy) || {
+    # No trust policy found — allow by default
+    echo "allowed"
+    return 0
+  }
+
+  # Use yq if available
+  if command -v yq &>/dev/null; then
+    # Check if agent exists, fall back to default
+    local agent_key="$agent"
+    local exists
+    exists="$(yq eval ".trust_levels.\"${agent}\"" "$policy_file" 2>/dev/null)"
+    if [[ "$exists" == "null" || -z "$exists" ]]; then
+      agent_key="default"
+    fi
+
+    # Human can do anything
+    if [[ "$agent_key" == "human" ]]; then
+      echo "allowed"
+      return 0
+    fi
+
+    # Check cannot_modify list
+    local denied_items
+    denied_items="$(yq eval ".trust_levels.\"${agent_key}\".cannot_modify[]" "$policy_file" 2>/dev/null)" || true
+    while IFS= read -r item; do
+      [[ -z "$item" ]] && continue
+      if [[ "$item" == "$target" ]]; then
+        echo "denied"
+        return 0
+      fi
+    done <<< "$denied_items"
+
+    # Check can_modify list
+    local allowed_items
+    allowed_items="$(yq eval ".trust_levels.\"${agent_key}\".can_modify[]" "$policy_file" 2>/dev/null)" || true
+    local in_allowed=0
+    while IFS= read -r item; do
+      [[ -z "$item" ]] && continue
+      if [[ "$item" == "$target" || "$item" == "all" ]]; then
+        in_allowed=1
+        break
+      fi
+    done <<< "$allowed_items"
+
+    if [[ $in_allowed -eq 0 ]]; then
+      echo "denied"
+      return 0
+    fi
+
+    echo "allowed"
+    return 0
+  fi
+
+  # Fallback: grep-based trust policy parsing
+  local in_agent_block=0 found_agent=0
+
+  while IFS= read -r line; do
+    # Detect agent block
+    if [[ "$line" =~ ^[[:space:]]{2}([a-zA-Z0-9_-]+):[[:space:]]*$ ]] || [[ "$line" =~ ^[[:space:]]{2}\"([a-zA-Z0-9_-]+)\":[[:space:]]*$ ]]; then
+      local block_name="${BASH_REMATCH[1]}"
+      if [[ "$block_name" == "$agent" ]]; then
+        in_agent_block=1
+        found_agent=1
+      elif [[ $in_agent_block -eq 1 ]]; then
+        break
+      else
+        in_agent_block=0
+      fi
+    fi
+
+    if [[ $in_agent_block -eq 1 ]]; then
+      if [[ "$line" =~ cannot_modify:.*\[(.+)\] ]]; then
+        local items="${BASH_REMATCH[1]}"
+        if echo "$items" | tr ',' '\n' | sed 's/[][ ]//g' | grep -qx "$target"; then
+          echo "denied"
+          return 0
+        fi
+      fi
+      if [[ "$line" =~ can_modify:.*\[(.+)\] ]]; then
+        local items="${BASH_REMATCH[1]}"
+        if echo "$items" | tr ',' '\n' | sed 's/[][ ]//g' | grep -qxE "(${target}|all)"; then
+          echo "allowed"
+          return 0
+        fi
+      fi
+    fi
+  done < "$policy_file"
+
+  # If agent not found, try "default" block
+  if [[ $found_agent -eq 0 ]]; then
+    in_agent_block=0
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^[[:space:]]{2}default:[[:space:]]*$ ]]; then
+        in_agent_block=1
+      elif [[ $in_agent_block -eq 1 && "$line" =~ ^[[:space:]]{2}[a-zA-Z] ]]; then
+        break
+      fi
+      if [[ $in_agent_block -eq 1 ]]; then
+        if [[ "$line" =~ cannot_modify:.*\[(.+)\] ]]; then
+          local items="${BASH_REMATCH[1]}"
+          if echo "$items" | tr ',' '\n' | sed 's/[][ ]//g' | grep -qx "$target"; then
+            echo "denied"
+            return 0
+          fi
+        fi
+        if [[ "$line" =~ can_modify:.*\[(.+)\] ]]; then
+          local items="${BASH_REMATCH[1]}"
+          if echo "$items" | tr ',' '\n' | sed 's/[][ ]//g' | grep -qxE "(${target}|all)"; then
+            echo "allowed"
+            return 0
+          fi
+        fi
+      fi
+    done < "$policy_file"
+  fi
+
+  # Default: deny for safety
+  echo "denied"
+  return 0
 }
