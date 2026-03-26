@@ -140,8 +140,15 @@ _primer_yaml_to_json() {
           # Key with no value — next lines are a list or nested block
           current_key="$key"
         fi
+      else
+        # Indented key: flatten nested values to top-level (e.g., project.name -> name, build.test -> test)
+        if [[ -n "$val" ]]; then
+          json=$(echo "$json" | jq --arg k "$key" --arg v "$val" '.[$k] = $v')
+        else
+          # Indented key with no value — next lines are a list under this key
+          current_key="$key"
+        fi
       fi
-      # Skip indented keys (they belong to nested structures we handle via list detection)
       continue
     fi
   done < "$file"
@@ -220,9 +227,13 @@ primer_emit() {
     config_json=$(primer_config_to_json "$Primer_CONFIG_FILE")
   fi
 
-  # Run pre-emit hooks
+  # Run pre-emit hooks (use primer_hooks_run which discovers both built-in and project hooks)
   local hooked
-  hooked=$(primer_run_hooks "pre-emit" "$config_json") || return 1
+  if type primer_hooks_run &>/dev/null; then
+    hooked=$(primer_hooks_run "pre-emit" "$config_json") || return 1
+  else
+    hooked=$(primer_run_hooks "pre-emit" "$config_json") || return 1
+  fi
 
   # Execute generator with --exec (JSON on stdin, target content on stdout)
   local output
@@ -231,15 +242,24 @@ primer_emit() {
     return 1
   }
 
-  # Run post-emit hooks
+  # Run post-emit hooks (use primer_hooks_run which discovers both built-in and project hooks)
   local final
-  final=$(primer_run_hooks "post-emit" "$output") || return 1
+  if type primer_hooks_run &>/dev/null; then
+    final=$(primer_hooks_run "post-emit" "$output") || return 1
+  else
+    final=$(primer_run_hooks "post-emit" "$output") || return 1
+  fi
 
   # Write output file
   local outfile
   outfile=$(_primer_target_file "$target")
   local outpath="$outdir/$outfile"
   echo "$final" > "$outpath"
+
+  # Store hash for drift detection (seams status)
+  if type _primer_hash_store &>/dev/null; then
+    _primer_hash_store "$target" "$final"
+  fi
 
   primer_success "Emitted $target -> $outpath"
 }

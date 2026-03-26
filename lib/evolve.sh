@@ -52,13 +52,30 @@ primer_evolve() {
     # Validate proposal has required fields
     if command -v jq &>/dev/null && [[ "$pfile" == *.json ]]; then
       local ptype pagent
-      ptype=$(jq -r '.type // empty' "$pfile" 2>/dev/null)
-      pagent=$(jq -r '.agent // empty' "$pfile" 2>/dev/null)
+      ptype=$(jq -r '.type // empty' "$pfile" 2>/dev/null) || true
+      pagent=$(jq -r '.agent // empty' "$pfile" 2>/dev/null) || true
 
       if [[ -z "$ptype" ]]; then
         primer_warn "Skipping $pname: missing 'type' field"
-        ((skipped++))
+        skipped=$((skipped + 1))
         continue
+      fi
+    elif [[ "$pfile" == *.yaml || "$pfile" == *.yml ]]; then
+      # Basic YAML validation: check the file has a 'type:' field
+      if ! grep -qE '^type:' "$pfile" 2>/dev/null; then
+        if command -v yq &>/dev/null; then
+          local ptype_yaml
+          ptype_yaml=$(yq eval '.type // ""' "$pfile" 2>/dev/null) || true
+          if [[ -z "$ptype_yaml" ]]; then
+            primer_warn "Skipping $pname: missing 'type' field"
+            skipped=$((skipped + 1))
+            continue
+          fi
+        else
+          primer_warn "Skipping $pname: missing 'type' field (no yq for full YAML validation)"
+          skipped=$((skipped + 1))
+          continue
+        fi
       fi
     fi
 
@@ -68,14 +85,63 @@ primer_evolve() {
       read -r answer
       if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
         primer_info "Skipped: $pname"
-        ((skipped++))
+        skipped=$((skipped + 1))
         continue
       fi
     fi
 
-    # Apply the proposal
+    # Apply the proposal: interpret type and execute the change
     local change
     change=$(cat "$pfile")
+
+    # Extract proposal fields for YAML files (using grep/sed fallback)
+    local ptype="" pagent="" change_id="" change_summary="" change_applies="" change_severity=""
+    if [[ "$pfile" == *.yaml || "$pfile" == *.yml ]]; then
+      ptype=$(grep -E '^type:' "$pfile" 2>/dev/null | head -1 | sed 's/^type:[[:space:]]*//' | tr -d '"' | sed 's/[[:space:]]*$//')
+      pagent=$(grep -E '^agent:' "$pfile" 2>/dev/null | head -1 | sed 's/^agent:[[:space:]]*//' | tr -d '"' | sed 's/[[:space:]]*$//')
+      change_id=$(grep -E '^\s+id:' "$pfile" 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//' | tr -d '"' | sed 's/[[:space:]]*$//')
+      change_summary=$(grep -E '^\s+summary:' "$pfile" 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//' | tr -d '"' | sed 's/[[:space:]]*$//')
+      change_applies=$(grep -E '^\s+applies_to:' "$pfile" 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//' | tr -d '[]"' | sed 's/[[:space:]]*$//')
+      change_severity=$(grep -E '^\s+severity:' "$pfile" 2>/dev/null | head -1 | sed 's/^[^:]*:[[:space:]]*//' | tr -d '"' | sed 's/[[:space:]]*$//')
+    elif command -v jq &>/dev/null && [[ "$pfile" == *.json ]]; then
+      ptype=$(jq -r '.type // empty' "$pfile" 2>/dev/null) || true
+      pagent=$(jq -r '.agent // empty' "$pfile" 2>/dev/null) || true
+      change_id=$(jq -r '.change.id // empty' "$pfile" 2>/dev/null) || true
+      change_summary=$(jq -r '.change.summary // empty' "$pfile" 2>/dev/null) || true
+      change_applies=$(jq -r '.change.applies_to // [] | join(",")' "$pfile" 2>/dev/null) || true
+      change_severity=$(jq -r '.change.severity // "medium"' "$pfile" 2>/dev/null) || true
+    fi
+
+    # Execute the change based on type
+    if [[ -n "$ptype" && -n "$change_id" && -n "$change_summary" ]]; then
+      local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
+      export Primer_KPL_DIR="$ai_dir/knowledge"
+      case "$ptype" in
+        add_gotcha)
+          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
+            primer_kpl_add "gotcha" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
+          fi
+          ;;
+        add_constraint)
+          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
+            primer_kpl_add "constraint" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
+          fi
+          ;;
+        add_failure)
+          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
+            primer_kpl_add "failure" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
+          fi
+          ;;
+        add_decision)
+          if [[ -f "$Primer_KPL_DIR/manifest.toml" ]]; then
+            primer_kpl_add "decision" "$change_id" "$change_summary" "${change_applies:-**/*}" "${change_severity:-medium}" 2>/dev/null || true
+          fi
+          ;;
+        *)
+          primer_info "  Unknown proposal type '$ptype' — moved to applied without action"
+          ;;
+      esac
+    fi
 
     # Log the application
     local ts
@@ -91,7 +157,7 @@ primer_evolve() {
     local applied_dir="$ai_dir/evolution/applied"
     mkdir -p "$applied_dir"
     mv "$pfile" "$applied_dir/$pname"
-    ((applied++))
+    applied=$((applied + 1))
     primer_success "Applied: $pname"
   done
 
@@ -184,10 +250,17 @@ primer_log_query() {
     [[ -f "$logfile" ]] || continue
 
     if command -v jq &>/dev/null; then
+      local jq_args=()
       local filter="."
-      [[ -n "$agent" ]] && filter="select(.agent == \"$agent\" or .file // \"\" | contains(\"$agent\"))"
-      [[ -n "$since" ]] && filter="$filter | select(.timestamp >= \"$since\")"
-      jq -c "$filter" "$logfile" 2>/dev/null
+      if [[ -n "$agent" ]]; then
+        jq_args+=(--arg agent "$agent")
+        filter='select(.agent == $agent or (.file // "" | contains($agent)))'
+      fi
+      if [[ -n "$since" ]]; then
+        jq_args+=(--arg since "$since")
+        filter="$filter | select(.timestamp >= \$since)"
+      fi
+      jq -c "${jq_args[@]+"${jq_args[@]}"}" "$filter" "$logfile" 2>/dev/null
     else
       if [[ -n "$agent" ]]; then
         grep "$agent" "$logfile"

@@ -82,10 +82,19 @@ DEV=$(_jq '.dev')
 if [[ -n "$BUILD" || -n "$TEST" || -n "$LINT" || -n "$DEV" ]]; then
   _append "## Build & Test"
   _append '```bash'
-  [[ -n "$BUILD" ]] && _append "# Build"  && _append "$BUILD" && _append ""
-  [[ -n "$TEST" ]]  && _append "# Test"   && _append "$TEST"  && _append ""
-  [[ -n "$LINT" ]]  && _append "# Lint"   && _append "$LINT"  && _append ""
-  [[ -n "$DEV" ]]   && _append "# Dev"    && _append "$DEV"
+  _cmds=()
+  [[ -n "$BUILD" ]] && _cmds+=("# Build" "$BUILD")
+  [[ -n "$TEST" ]]  && _cmds+=("# Test"  "$TEST")
+  [[ -n "$LINT" ]]  && _cmds+=("# Lint"  "$LINT")
+  [[ -n "$DEV" ]]   && _cmds+=("# Dev"   "$DEV")
+  _i=0
+  for ((_i=0; _i<${#_cmds[@]}; _i++)); do
+    _append "${_cmds[$_i]}"
+    # Add blank line separator between command groups (every 2 entries), but not after last
+    if (( (_i % 2 == 1) && (_i < ${#_cmds[@]} - 1) )); then
+      _append ""
+    fi
+  done
   _append '```'
   _append ""
 fi

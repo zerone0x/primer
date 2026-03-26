@@ -108,7 +108,7 @@ cmd_evolve() {
       *) primer_die "Unknown option: $1" ;;
     esac
   done
-  primer_evolve $auto
+  primer_evolve ${auto:+"$auto"}
 }
 
 cmd_kpl() {
@@ -123,6 +123,7 @@ cmd_kpl() {
       echo "  init                                      Initialize knowledge store"
       echo "  add <type> <id> <summary> <globs> [sev]   Add knowledge entry"
       echo "  query <path> [path...]                    Query knowledge base by file path"
+      echo "  inject <paths> [format]                   Generate context injection for paths"
       echo "  prune [--apply]                           Remove stale entries"
       echo "  budget                                    Show knowledge budget usage"
       echo
@@ -145,6 +146,12 @@ cmd_kpl() {
       local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
       export Primer_KPL_DIR="$ai_dir/knowledge"
       primer_kpl_query "$@"
+      ;;
+    inject)
+      shift
+      local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
+      export Primer_KPL_DIR="$ai_dir/knowledge"
+      primer_kpl_inject "$@"
       ;;
     prune)
       shift

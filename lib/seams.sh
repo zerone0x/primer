@@ -225,6 +225,7 @@ primer_seams_status() {
   echo
   primer_info "Status: $current current, $stale stale, $missing untracked"
   [[ $stale -gt 0 ]] && primer_warn "Run 'primer seams sync' to update stale configs"
+  return 0
 }
 
 # ---------------------------------------------------------------------------

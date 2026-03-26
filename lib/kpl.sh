@@ -33,13 +33,20 @@ _kpl_toml_get() {
       fi
       continue
     fi
-    if [[ $in_section -eq 1 && "$line" =~ ^${key}[[:space:]]*=[[:space:]]*(.*) ]]; then
-      local val="${BASH_REMATCH[1]}"
-      # Strip surrounding quotes
-      val="${val#\"}"
-      val="${val%\"}"
-      echo "$val"
-      return 0
+    # Match key literally (compare extracted key name)
+    if [[ $in_section -eq 1 && "$line" =~ ^([a-zA-Z0-9_-]+)[[:space:]]*=[[:space:]]*(.*) ]]; then
+      local line_key="${BASH_REMATCH[1]}"
+      local val="${BASH_REMATCH[2]}"
+      if [[ "$line_key" == "$key" ]]; then
+        # Strip surrounding quotes
+        val="${val#\"}"
+        val="${val%\"}"
+        # Unescape TOML escaped characters
+        val="${val//\\\"/\"}"
+        val="${val//\\\\/\\}"
+        echo "$val"
+        return 0
+      fi
     fi
   done < "$file"
 }
@@ -50,6 +57,10 @@ _kpl_toml_set() {
   local file="$1" section="$2" key="$3" value="$4"
   local tmpfile="${file}.tmp.$$"
   local in_section=0 key_written=0 section_found=0
+
+  # Escape double quotes and backslashes in value for valid TOML
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
 
   while IFS= read -r line; do
     if [[ "$line" =~ ^\[([a-zA-Z0-9_.-]+)\] ]]; then
@@ -64,10 +75,13 @@ _kpl_toml_set() {
         in_section=0
       fi
     fi
-    if [[ $in_section -eq 1 && "$line" =~ ^${key}[[:space:]]*= ]]; then
-      echo "${key} = \"${value}\""
-      key_written=1
-      continue
+    if [[ $in_section -eq 1 && "$line" =~ ^([a-zA-Z0-9_-]+)[[:space:]]*= ]]; then
+      local line_key="${BASH_REMATCH[1]}"
+      if [[ "$line_key" == "$key" ]]; then
+        echo "${key} = \"${value}\""
+        key_written=1
+        continue
+      fi
     fi
     echo "$line"
   done < "$file" > "$tmpfile"
@@ -165,11 +179,12 @@ primer_kpl_init() {
   mkdir -p "$target/decisions"
 
   if [[ -n "${Primer_KPL_TEMPLATE_DIR:-}" && -d "$Primer_KPL_TEMPLATE_DIR" ]]; then
-    cp "$Primer_KPL_TEMPLATE_DIR/manifest.toml" "$target/manifest.toml"
-    cp "$Primer_KPL_TEMPLATE_DIR/gotchas.toml" "$target/gotchas.toml"
-    cp "$Primer_KPL_TEMPLATE_DIR/constraints.toml" "$target/constraints.toml"
-    cp "$Primer_KPL_TEMPLATE_DIR/failures.toml" "$target/failures.toml"
-    cp "$Primer_KPL_TEMPLATE_DIR/decisions/TEMPLATE.md" "$target/decisions/TEMPLATE.md"
+    # Only copy files that don't already exist (preserve template-provided knowledge)
+    [[ ! -f "$target/manifest.toml" ]] && cp "$Primer_KPL_TEMPLATE_DIR/manifest.toml" "$target/manifest.toml"
+    [[ ! -f "$target/gotchas.toml" ]] && cp "$Primer_KPL_TEMPLATE_DIR/gotchas.toml" "$target/gotchas.toml"
+    [[ ! -f "$target/constraints.toml" ]] && cp "$Primer_KPL_TEMPLATE_DIR/constraints.toml" "$target/constraints.toml"
+    [[ ! -f "$target/failures.toml" ]] && cp "$Primer_KPL_TEMPLATE_DIR/failures.toml" "$target/failures.toml"
+    [[ ! -f "$target/decisions/TEMPLATE.md" ]] && cp "$Primer_KPL_TEMPLATE_DIR/decisions/TEMPLATE.md" "$target/decisions/TEMPLATE.md"
   else
     # Inline minimal templates
     cat > "$target/manifest.toml" <<'TOML'
@@ -184,7 +199,9 @@ tier0_max_tokens = 200
 tier1_max_tokens = 1500
 tier2_max_tokens = 5000
 TOML
-    touch "$target/gotchas.toml" "$target/constraints.toml" "$target/failures.toml"
+    [[ ! -f "$target/gotchas.toml" ]] && touch "$target/gotchas.toml"
+    [[ ! -f "$target/constraints.toml" ]] && touch "$target/constraints.toml"
+    [[ ! -f "$target/failures.toml" ]] && touch "$target/failures.toml"
     cat > "$target/decisions/TEMPLATE.md" <<'MD'
 # ADR-XXXX: Title
 
@@ -235,7 +252,10 @@ primer_kpl_add() {
       echo "Decision $id already exists at $adr_file" >&2
       return 1
     fi
-    sed "s/ADR-XXXX: Title/ADR-${id}: ${summary}/" "$target/decisions/TEMPLATE.md" > "$adr_file"
+    local safe_id safe_summary
+    safe_id=$(printf '%s' "$id" | sed 's/[&/\]/\\&/g')
+    safe_summary=$(printf '%s' "$summary" | sed 's/[&/\]/\\&/g')
+    sed "s/ADR-XXXX: Title/ADR-${safe_id}: ${safe_summary}/" "$target/decisions/TEMPLATE.md" > "$adr_file"
     echo "Decision added: $adr_file"
     # Record in manifest
     _kpl_toml_set "$target/manifest.toml" "entry.${id}" "type" "decision"
@@ -263,10 +283,14 @@ primer_kpl_add() {
     applies_arr="${applies_arr}\"${g}\""
   done
 
+  # Escape double quotes and backslashes in summary for valid TOML
+  local escaped_summary="${summary//\\/\\\\}"
+  escaped_summary="${escaped_summary//\"/\\\"}"
+
   {
     echo ""
     echo "[$id]"
-    echo "summary = \"$summary\""
+    echo "summary = \"$escaped_summary\""
     echo "applies_to = [${applies_arr}]"
     echo "severity = \"$severity\""
     [[ "$type" == "failure" ]] && echo "date = \"$(date -u +%Y-%m-%d)\""
@@ -294,11 +318,13 @@ primer_kpl_query() {
   local -a results=()
 
   # Scan all entry files
+  local toml_file
   for toml_file in "$target/gotchas.toml" "$target/constraints.toml" "$target/failures.toml"; do
     [[ -f "$toml_file" ]] || continue
     while IFS='|' read -r eid esummary eapplies eseverity edate; do
       [[ -z "$eid" ]] && continue
       # Check each query path against each applies_to glob
+      local -a globs
       IFS=',' read -ra globs <<< "$eapplies"
       local matched=0
       for glob in "${globs[@]}"; do
@@ -511,6 +537,34 @@ primer_kpl_inject() {
       fi
     done < <(_kpl_parse_entries "$toml_file")
   done
+
+  # Also check decision entries in manifest (same logic as primer_kpl_query)
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^\[entry\.([a-zA-Z0-9_-]+)\] ]]; then
+      local eid="${BASH_REMATCH[1]}"
+      local etype esummary eapplies eseverity
+      etype=$(_kpl_toml_get "$target/manifest.toml" "entry.${eid}" "type")
+      [[ "$etype" != "decision" ]] && continue
+      esummary=$(_kpl_toml_get "$target/manifest.toml" "entry.${eid}" "summary")
+      eapplies=$(_kpl_toml_get "$target/manifest.toml" "entry.${eid}" "applies_to")
+      eseverity=$(_kpl_toml_get "$target/manifest.toml" "entry.${eid}" "severity")
+      IFS=',' read -ra globs <<< "$eapplies"
+      local matched=0
+      for glob in "${globs[@]}"; do
+        for qpath in "${query_paths[@]}"; do
+          if _kpl_glob_match "$glob" "$qpath"; then
+            matched=1
+            break 2
+          fi
+        done
+      done
+      if [[ $matched -eq 1 ]]; then
+        local rank
+        rank=$(_kpl_severity_rank "$eseverity")
+        matched_entries+=("${rank}|decision|${eid}|${esummary}|${eseverity}")
+      fi
+    fi
+  done < "$target/manifest.toml"
 
   # Sort by severity
   local -a sorted_entries=()

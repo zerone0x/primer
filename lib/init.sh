@@ -179,9 +179,13 @@ primer_init() {
 
   if [[ -f "$template_dir/.ai/project.yaml" ]]; then
     # Replace placeholder values
+    # Escape sed special characters in user-provided strings
+    local safe_name safe_desc
+    safe_name=$(printf '%s' "$project_name" | sed 's/[&/\]/\\&/g')
+    safe_desc=$(printf '%s' "$project_desc" | sed 's/[&/\]/\\&/g')
     sed \
-      -e "s/^  name: \"\".*$/  name: \"$project_name\"/" \
-      -e "s/^  description: \"\".*$/  description: \"$project_desc\"/" \
+      -e "s/^  name: \"\".*$/  name: \"$safe_name\"/" \
+      -e "s/^  description: \"\".*$/  description: \"$safe_desc\"/" \
       "$template_dir/.ai/project.yaml" > "$ai_dir/project.yaml"
   fi
 
