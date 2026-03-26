@@ -9,6 +9,25 @@ One canonical `.ai/` directory generates CLAUDE.md, AGENTS.md, .cursorrules, and
 - When constraints change, you update one file and forget the others
 - primer stores everything in `.ai/project.yaml` and generates all tool-native configs from it
 
+## Install
+
+```bash
+# Clone and symlink
+git clone git@github.com:zerone0x/primer.git ~/.primer
+ln -sf ~/.primer/bin/primer /usr/local/bin/primer
+
+# Verify
+primer --version
+```
+
+Requirements: `bash 4+`, `jq`. Optional: `yq` (for full YAML support, falls back to regex parsing).
+
+```bash
+# macOS
+brew install jq        # required
+brew install yq        # optional, recommended
+```
+
 ## Quick Start
 
 ```bash
