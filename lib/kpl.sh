@@ -104,12 +104,19 @@ _kpl_toml_set() {
 # $1=pattern $2=path
 _kpl_glob_match() {
   local pattern="$1" path="$2"
-  # Use bash extglob + case for glob matching
-  # Convert ** to a regex-friendly form
+  # Convert glob to regex. Use placeholders to avoid double-substitution.
+  local ph1=$'\x01' ph2=$'\x02'
   local re="$pattern"
   re="${re//./\\.}"
-  re="${re//\*\*/.+}"
+  # **/ should match zero or more directory segments (including empty)
+  re="${re//\*\*\//$ph1}"
+  # standalone ** matches everything
+  re="${re//\*\*/$ph2}"
+  # single * matches anything except /
   re="${re//\*/[^/]*}"
+  # Now replace placeholders with actual regex
+  re="${re//$ph1/(.+/)?}"
+  re="${re//$ph2/.*}"
   re="^${re}$"
   [[ "$path" =~ $re ]]
 }

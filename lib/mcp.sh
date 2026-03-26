@@ -203,6 +203,9 @@ primer_mcp_add() {
       local first=1
       for arg in $args_raw; do
         [[ $first -eq 1 ]] && first=0 || args_yaml+=", "
+        # Strip surrounding quotes if present
+        arg="${arg#\"}" ; arg="${arg%\"}"
+        arg="${arg#\'}" ; arg="${arg%\'}"
         args_yaml+="\"$arg\""
       done
       args_yaml+="]"

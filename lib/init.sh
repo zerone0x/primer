@@ -195,6 +195,11 @@ primer_init() {
     done < "$template_dir/.ai/project.yaml" > "$ai_dir/project.yaml"
   fi
 
+  # Initialize KPL (knowledge persistence layer) if not already set up
+  if type primer_kpl_init &>/dev/null && [[ ! -f "$ai_dir/knowledge/manifest.toml" ]]; then
+    primer_kpl_init "$ai_dir/knowledge" >/dev/null 2>&1 || true
+  fi
+
   primer_success "Created .ai/ from template '$template'"
   primer_info "  project.yaml  — edit constraints and build commands"
   primer_info "  knowledge/    — gotchas and constraints for your stack"

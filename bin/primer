@@ -137,6 +137,11 @@ cmd_kpl() {
       ;;
     add)
       shift
+      if [[ $# -lt 4 ]]; then
+        primer_error "Usage: primer kpl add <type> <id> <summary> <globs> [severity]"
+        echo "Types: gotcha, constraint, failure, decision"
+        return 1
+      fi
       local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
       export Primer_KPL_DIR="$ai_dir/knowledge"
       primer_kpl_add "$@"
@@ -413,7 +418,7 @@ main() {
     *)
       # Try command plugins
       local found=""
-      for src in "${Primer_SOURCES[@]}"; do
+      for src in "${Primer_SOURCES[@]+"${Primer_SOURCES[@]}"}"; do
         local cdir="$src/plugins/commands"
         [[ -d "$cdir" ]] || continue
         for c in "$cdir"/*; do

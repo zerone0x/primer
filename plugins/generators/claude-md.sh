@@ -108,6 +108,17 @@ if [[ -n "$PHASE" ]]; then
   _append ""
 fi
 
+# -- Knowledge (injected by pre-generate hooks from KPL TOML files)
+KNOWLEDGE_INJECTED=$(_jq '.knowledge_injected')
+if [[ "$KNOWLEDGE_INJECTED" == "true" ]]; then
+  KNOWLEDGE_ENTRIES=$(_jq_raw '(.knowledge_entries // [])[] | "- **\(.type // "note")/\(.id // "unknown")** [\(.severity // "medium")]: \(.text // .summary // "")"' 2>/dev/null)
+  if [[ -n "$KNOWLEDGE_ENTRIES" ]]; then
+    _append "## Knowledge"
+    _append "$KNOWLEDGE_ENTRIES"
+    _append ""
+  fi
+fi
+
 # -- Context references (skills)
 SKILLS=$(_jq_raw '(.skills // [])[] | "- When working on \(.scope // "related tasks"), read \`.ai/skills/\(.file // .name)\`"' 2>/dev/null)
 if [[ -n "$SKILLS" ]]; then

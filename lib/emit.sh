@@ -8,7 +8,7 @@
 
 Primer_REG_TARGETS="claude-md agents-md cursorrules hermes-md"
 Primer_REG_FILES="CLAUDE.md AGENTS.md .cursorrules .hermes.md"
-Primer_REG_DETECT="command_-v_claude true test_-d_.cursor||command_-v_cursor test_-f_.hermes.md||command_-v_hermes"
+Primer_REG_DETECT="command_-v_claude true test_-d_.cursor||command_-v_cursor true"
 
 # Resolve output filename for a target
 _primer_target_file() {
@@ -227,12 +227,20 @@ primer_emit() {
     config_json=$(primer_config_to_json "$Primer_CONFIG_FILE")
   fi
 
+  # Run pre-generate hooks first (augment config JSON with phase/knowledge)
+  local pregenerated
+  if type primer_hooks_run &>/dev/null; then
+    pregenerated=$(primer_hooks_run "pre-generate" "$config_json") || return 1
+  else
+    pregenerated=$(primer_run_hooks "pre-generate" "$config_json") || return 1
+  fi
+
   # Run pre-emit hooks (use primer_hooks_run which discovers both built-in and project hooks)
   local hooked
   if type primer_hooks_run &>/dev/null; then
-    hooked=$(primer_hooks_run "pre-emit" "$config_json") || return 1
+    hooked=$(primer_hooks_run "pre-emit" "$pregenerated") || return 1
   else
-    hooked=$(primer_run_hooks "pre-emit" "$config_json") || return 1
+    hooked=$(primer_run_hooks "pre-emit" "$pregenerated") || return 1
   fi
 
   # Execute generator with --exec (JSON on stdin, target content on stdout)
@@ -324,10 +332,26 @@ primer_emit_all() {
 # ---------------------------------------------------------------------------
 
 primer_emit_list() {
+  local src gdir g name
+
+  # List built-in generators shipped with Primer
+  local primer_root
+  primer_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  local builtin_dir="$primer_root/plugins/generators"
+  if [[ -d "$builtin_dir" ]]; then
+    for g in "$builtin_dir"/*; do
+      [[ -f "$g" && -x "$g" ]] || continue
+      name="$(basename "$g" | sed 's/\.[^.]*$//')"
+      local desc=""
+      desc=$("$g" --describe 2>/dev/null || true)
+      echo "  $name  ${desc:+— $desc}  (built-in)"
+    done
+  fi
+
+  # List plugin generators from .ai/ sources
   if [[ ${#Primer_SOURCES[@]} -eq 0 ]]; then
     return 0
   fi
-  local src gdir g name
   for src in "${Primer_SOURCES[@]}"; do
     gdir="$src/plugins/generators"
     [[ -d "$gdir" ]] || continue
