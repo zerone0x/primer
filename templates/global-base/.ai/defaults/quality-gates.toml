@@ -1,0 +1,15 @@
+# quality-gates.toml — Quality checks that Claude Code doesn't natively enforce
+# These gates are checked at each lifecycle stage.
+
+[pre_commit]
+lint = true
+typecheck = true
+test_affected = true
+
+[pre_push]
+test_all = true
+coverage_min = 0  # 0 = no minimum
+
+[pre_pr]
+changelog_updated = false
+docs_updated = false

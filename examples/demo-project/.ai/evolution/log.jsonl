@@ -1,0 +1,5 @@
+{"timestamp":"2026-03-10T08:15:00Z","file":"init-project.json","action":"applied","agent":"human","detail":"Initial project setup with tokio template"}
+{"timestamp":"2026-03-12T14:30:00Z","file":"add-dashmap-gotcha.json","action":"applied","agent":"claude-code","detail":"Added dashmap deadlock gotcha after debugging session"}
+{"timestamp":"2026-03-15T09:00:00Z","file":"add-resp-constraint.json","action":"applied","agent":"claude-code","detail":"Added RESP compatibility constraint after test suite failures"}
+{"timestamp":"2026-03-19T16:45:00Z","file":"phase-to-growth.json","action":"applied","agent":"human","detail":"Promoted project from bootstrap to growth phase -- all exit criteria met"}
+{"timestamp":"2026-03-22T11:20:00Z","file":"add-ttl-gotcha.json","action":"applied","agent":"codex","detail":"Added TTL precision gotcha discovered during benchmark analysis"}

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://primer.dev/schema/project.v1.json",
+  "title": "Primer Project Configuration",
+  "description": "Schema for project.yaml - Portable AI Infrastructure Config v1",
+  "type": "object",
+  "required": ["version", "project", "phase", "constraints"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1",
+      "description": "Schema version, must be '1'"
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Project identifier, lowercase alphanumeric with hyphens"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Brief project description, max 200 characters"
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "Repository URL"
+        }
+      }
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["bootstrap", "growth", "mature", "legacy"],
+      "description": "Current project lifecycle phase"
+    },
+    "constraints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 20,
+        "description": "Each constraint must be at least 20 characters to be meaningful"
+      },
+      "description": "Project constraints that AI agents must respect"
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "test": {
+          "type": "string",
+          "description": "Command to run tests"
+        },
+        "lint": {
+          "type": "string",
+          "description": "Command to run linter"
+        },
+        "deploy_staging": {
+          "type": "string",
+          "description": "Command to deploy to staging"
+        },
+        "deploy_prod": {
+          "type": "string",
+          "description": "Command to deploy to production"
+        }
+      }
+    },
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "language": {
+          "type": "string",
+          "description": "Primary programming language"
+        },
+        "framework": {
+          "type": "string",
+          "description": "Primary framework"
+        },
+        "database": {
+          "type": "string",
+          "description": "Database system"
+        },
+        "infra": {
+          "type": "string",
+          "description": "Infrastructure platform"
+        },
+        "ci": {
+          "type": "string",
+          "description": "CI/CD platform"
+        }
+      }
+    },
+    "context_loading": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "always": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files always loaded into context"
+        },
+        "on_path": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": "Glob pattern to file list mapping, loaded when path matches"
+        },
+        "on_demand": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files loaded only when explicitly requested"
+        }
+      }
+    }
+  }
+}

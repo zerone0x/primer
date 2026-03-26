@@ -1,0 +1,31 @@
+# Go service environment constraints — build and deployment boundaries
+
+[[constraint]]
+id = "cgo-disabled-default"
+summary = "Set CGO_ENABLED=0 for static binaries unless you need C libraries"
+detail = """
+Default Go builds use CGO on Linux, producing dynamically linked binaries that
+depend on glibc. These fail in scratch/distroless containers. Always build with
+CGO_ENABLED=0 for static binaries. If you need SQLite or other C libs, use an
+alpine-based image with musl instead of scratch.
+"""
+
+[[constraint]]
+id = "module-path-convention"
+summary = "Module path must match the repo URL — never use vanity paths without a redirect"
+detail = """
+`go.mod` module path must be the repo URL (e.g., github.com/org/repo). If you use
+a vanity import path (e.g., pkg.example.com/repo), you MUST serve the go-import
+meta tag at that URL. Without it, `go get` fails for all consumers. Most teams
+should skip vanity paths and use the GitHub URL directly.
+"""
+
+[[constraint]]
+id = "graceful-shutdown"
+summary = "HTTP servers must handle SIGTERM with graceful shutdown"
+detail = """
+Kubernetes sends SIGTERM before killing pods. Without graceful shutdown, in-flight
+requests get connection-reset errors. Use `signal.NotifyContext` + `srv.Shutdown(ctx)`
+with a 30-second timeout. The readiness probe must stop returning 200 before
+shutdown begins so the load balancer drains traffic first.
+"""

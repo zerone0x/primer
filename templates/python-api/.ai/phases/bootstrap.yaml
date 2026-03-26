@@ -1,0 +1,19 @@
+phase: bootstrap
+description: "Initial API setup — get a deployable endpoint with proper foundations"
+guidance:
+  do:
+    - "Set up virtual environment and pin all dependencies from day one"
+    - "Configure mypy --strict and ruff in CI before writing any endpoint logic"
+    - "Create a health check endpoint that verifies database connectivity"
+    - "Use Pydantic models for request/response from the first endpoint"
+    - "Set up alembic with a proper env.py that handles async engines"
+  do_not:
+    - "Do not add authentication middleware until you have an endpoint worth protecting"
+    - "Do not create a custom exception hierarchy yet — use HTTPException with status codes"
+    - "Do not add background tasks or Celery — start synchronous, add async when you need it"
+    - "Do not use raw SQL — set up the ORM correctly from the start"
+exit_criteria:
+  - "API deploys and health check returns 200 with database connectivity verified"
+  - "mypy --strict passes with zero errors"
+  - "At least one endpoint has request validation, proper status codes, and a test"
+  - "CI runs tests, type checking, and linting on every push"

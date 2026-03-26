@@ -1,0 +1,19 @@
+phase: growth
+description: "Adding features — the app has users and performance matters"
+guidance:
+  do:
+    - "Add loading.tsx and error.tsx to every route segment — users see blank screens without them"
+    - "Implement on-demand revalidation (revalidateTag/revalidatePath) instead of time-based ISR"
+    - "Use next/image for all images and set explicit width/height to prevent layout shift"
+    - "Add bundle analyzer to CI and set a size budget per route"
+    - "Implement parallel routes for complex layouts that load data independently"
+  do_not:
+    - "Do not fetch data in client components when a Server Component parent can pass it as props"
+    - "Do not use useEffect for data fetching — use Server Components or React Query with suspense"
+    - "Do not put middleware logic that needs database access — middleware runs on Edge Runtime"
+    - "Do not nest layouts more than 3 levels deep — it makes reasoning about rendering impossible"
+exit_criteria:
+  - "Every route has loading and error states"
+  - "Lighthouse performance score is above 90 on key pages"
+  - "No client-side JavaScript fetches data that could come from Server Components"
+  - "Bundle size is tracked in CI with failure on regression"

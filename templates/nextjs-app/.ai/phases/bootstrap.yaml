@@ -1,0 +1,19 @@
+phase: bootstrap
+description: "Initial app setup — get a deployable page with proper foundations"
+guidance:
+  do:
+    - "Use App Router from the start — Pages Router is legacy for new projects"
+    - "Set up the 'server-only' package immediately and import it in any file that touches secrets"
+    - "Create a root layout.tsx with metadata, fonts, and error boundary before any pages"
+    - "Add next lint and prettier to CI before writing components"
+    - "Set up environment variable validation at build time (use t3-env or zod)"
+  do_not:
+    - "Do not install a state management library yet — Server Components eliminate most client state needs"
+    - "Do not add authentication until you have a page worth protecting"
+    - "Do not use getServerSideProps or getStaticProps — those are Pages Router patterns"
+    - "Do not create API routes for data that Server Components can fetch directly"
+exit_criteria:
+  - "App deploys successfully to staging with zero console errors"
+  - "Server and client component boundaries are explicitly marked"
+  - "Environment variables are validated at build time"
+  - "CI runs next lint and next build on every push"

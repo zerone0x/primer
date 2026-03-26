@@ -1,0 +1,53 @@
+# Next.js App Router gotchas — the ones that cause production incidents
+
+[[gotcha]]
+id = "server-client-boundary"
+summary = "Importing a server module in a client component leaks secrets"
+detail = """
+If a 'use client' component imports from a file that reads process.env.DATABASE_URL,
+that secret gets bundled into client JavaScript. Next.js will NOT warn you at build time.
+Use the 'server-only' package: add `import 'server-only'` to any module that touches
+secrets, and the build will fail if a client component tries to import it.
+"""
+severity = "critical"
+
+[[gotcha]]
+id = "fetch-dedup-surprise"
+summary = "Next.js deduplicates fetch() calls in Server Components — even when you don't want it"
+detail = """
+Two Server Components calling fetch('/api/data') in the same render get the same cached
+response. This is fine for GET but breaks if you expect fresh data after a mutation.
+Use `{ cache: 'no-store' }` or `revalidateTag()` explicitly when freshness matters.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "middleware-edge-runtime"
+summary = "middleware.ts runs on Edge Runtime with no Node.js APIs"
+detail = """
+You cannot use fs, path, Buffer, or most npm packages in middleware.ts. It runs on the
+Edge Runtime, not Node.js. This includes popular auth libraries that use crypto.
+Check the Edge Runtime compatibility before putting logic in middleware.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "layout-no-rerender"
+summary = "Layouts do not re-render on navigation — they preserve state"
+detail = """
+layout.tsx components are NOT re-rendered when navigating between sibling pages.
+State set via useState in a layout persists across page navigations. This means
+you cannot use layout state to track 'current page'. Use usePathname() instead,
+and never put page-specific logic in layouts.
+"""
+severity = "medium"
+
+[[gotcha]]
+id = "revalidate-zero"
+summary = "revalidate: 0 does NOT mean 'no caching' — it means 'revalidate immediately'"
+detail = """
+Setting `export const revalidate = 0` in a page still generates a static page that
+gets revalidated on every request (ISR with 0s stale time). For truly dynamic pages
+that should never be cached, use `export const dynamic = 'force-dynamic'` instead.
+"""
+severity = "medium"

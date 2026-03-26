@@ -1,0 +1,8 @@
+# Failures: append-only log of things that went wrong
+# Format: [id] summary, applies_to, severity, date
+
+# [example-failure]
+# summary = "Description of what failed and root cause"
+# applies_to = ["src/**"]
+# severity = "high"  # high | medium | low
+# date = "2026-01-01"

@@ -1,0 +1,19 @@
+phase: growth
+description: "Adding features — the library has consumers and compatibility matters"
+guidance:
+  do:
+    - "Add changesets (@changesets/cli) for versioning — never manually bump version numbers"
+    - "Document every public API with TSDoc comments and generate API docs in CI"
+    - "Test against multiple Node.js versions (LTS and current) in CI matrix"
+    - "Add explicit subpath exports for tree-shakeable imports (e.g., 'pkg/utils')"
+    - "Set up a canary release channel for pre-release testing"
+  do_not:
+    - "Do not make breaking changes to exported types without a major version bump"
+    - "Do not add peer dependencies without testing all supported versions in CI"
+    - "Do not use enums — they emit runtime code and break tree-shaking; use const objects with as const"
+    - "Do not re-export third-party types as part of your public API — wrap them"
+exit_criteria:
+  - "Semantic versioning is automated via changesets"
+  - "All public APIs have TSDoc comments with @example tags"
+  - "CI tests against minimum and latest supported Node.js versions"
+  - "Bundle size is tracked and visible in PRs"

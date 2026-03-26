@@ -1,0 +1,30 @@
+# TypeScript library environment constraints — packaging and compatibility
+
+[[constraint]]
+id = "exports-map-required"
+summary = "package.json exports map is mandatory for dual CJS/ESM packages"
+detail = """
+Without an exports map, Node.js guesses the module format from the `type` field,
+which means your package is EITHER CJS or ESM — not both. Use:
+"exports": { ".": { "import": "./dist/esm/index.js", "require": "./dist/cjs/index.js", "types": "./dist/types/index.d.ts" } }
+Test both entry points: `node -e "require('pkg')"` AND `node --input-type=module -e "import('pkg')"`.
+"""
+
+[[constraint]]
+id = "node-version-range"
+summary = "engines.node must specify the minimum supported version"
+detail = """
+Without `"engines": {"node": ">=18"}` in package.json, npm does not warn consumers
+when they install on an unsupported Node version. Your CI must test against the
+minimum version, not just latest. Use `volta` or `fnm` for local version management.
+"""
+
+[[constraint]]
+id = "no-postinstall-scripts"
+summary = "Never use postinstall scripts in published packages"
+detail = """
+postinstall scripts run with the consumer's permissions and trigger npm audit warnings.
+They also break `npm ci --ignore-scripts` which many CI pipelines use for security.
+If you need native code compilation, use prebuild binaries via @napi-rs or prebuildify
+instead of compiling in postinstall.
+"""

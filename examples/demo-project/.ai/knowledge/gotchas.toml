@@ -1,0 +1,16 @@
+# fastcache gotchas -- things that look wrong but are intentional
+
+[dashmap-deadlock]
+summary = "DashMap read guards must not be held across await points or deadlocks occur"
+applies_to = ["src/cache/**", "src/store/**"]
+severity = "high"
+
+[resp-crlf]
+summary = "RESP protocol requires CRLF line endings -- bare LF will cause parse failures with real Redis clients"
+applies_to = ["src/protocol/**", "src/resp/**"]
+severity = "high"
+
+[ttl-precision]
+summary = "TTL expiration uses tokio::time::Instant which has ~1ms precision -- do not promise sub-millisecond expiry"
+applies_to = ["src/cache/**", "src/ttl/**"]
+severity = "medium"

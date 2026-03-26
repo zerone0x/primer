@@ -1,0 +1,19 @@
+phase: growth
+description: "Adding features — the API has consumers and reliability matters"
+guidance:
+  do:
+    - "Add structured logging with correlation IDs across all endpoints"
+    - "Implement proper pagination (cursor-based, not offset) for list endpoints"
+    - "Add rate limiting middleware before you need it — retrofitting is harder"
+    - "Write migration rollback scripts for every forward migration"
+    - "Set up integration tests that run against a real database (use testcontainers)"
+  do_not:
+    - "Do not add GraphQL alongside REST unless there is a clear consumer need"
+    - "Do not create deeply nested router includes — keep the route tree flat and explicit"
+    - "Do not use global state or module-level mutable variables for request-scoped data"
+    - "Do not suppress type errors with # type: ignore — fix the type or document why"
+exit_criteria:
+  - "All endpoints have structured logging with request tracing"
+  - "Database migrations have tested rollback paths"
+  - "API documentation is auto-generated from Pydantic models (OpenAPI)"
+  - "Integration tests cover the critical path with a real database"

@@ -1,0 +1,19 @@
+phase: bootstrap
+description: "Initial library setup — get a publishable package with correct module setup"
+guidance:
+  do:
+    - "Set up the package.json exports map with CJS, ESM, and types entry points from day one"
+    - "Configure tsup (or unbuild) for dual CJS/ESM output before writing any source code"
+    - "Add size-limit to CI to catch accidental bundle size regressions"
+    - "Write the public API types first, then implement — types are the contract"
+    - "Set up vitest with coverage thresholds before writing any implementation"
+  do_not:
+    - "Do not publish without testing that both require() and import() work in a clean project"
+    - "Do not use `export *` in the entry point — be explicit about what is public API"
+    - "Do not add runtime dependencies unless absolutely necessary — every dep is your consumer's dep"
+    - "Do not use path aliases (tsconfig paths) — they break consumers who do not use your bundler"
+exit_criteria:
+  - "Package installs cleanly and works with both require() and import() in a test project"
+  - ".d.ts files are generated and do not reference internal modules"
+  - "CI runs tests, type checking, lint, and size-limit on every push"
+  - "npm pack --dry-run shows only intended files (no tests, no source maps)"

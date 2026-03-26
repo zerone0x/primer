@@ -1,0 +1,55 @@
+# Go service gotchas — the ones senior Go devs still trip on
+
+[[gotcha]]
+id = "goroutine-leak-http"
+summary = "Forgetting to read/close HTTP response bodies leaks connections"
+detail = """
+If you call http.Get() and don't read the response body to completion AND close it,
+the underlying TCP connection is never returned to the pool. This slowly exhausts
+file descriptors under load. Always: `defer resp.Body.Close()` AND `io.Copy(io.Discard, resp.Body)`.
+Just closing without draining is not enough for keep-alive to work.
+"""
+severity = "critical"
+
+[[gotcha]]
+id = "context-cancel-propagation"
+summary = "context.WithCancel leaks if you forget to call the cancel func"
+detail = """
+Every context.WithCancel/WithTimeout/WithDeadline MUST have its cancel function called,
+even if the context expires naturally. The cancel function releases resources.
+Always: `ctx, cancel := context.WithTimeout(parent, 5*time.Second); defer cancel()`.
+Linters catch this, but only if configured — add `contextcheck` to golangci-lint.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "interface-nil-check"
+summary = "A nil pointer in an interface is not a nil interface"
+detail = """
+`var p *MyStruct = nil; var i error = p; i == nil` is FALSE. The interface holds a
+non-nil type with a nil value. This is Go's most infamous gotcha. Never return a
+concrete nil pointer as an interface. Instead: `return nil` not `return p` when p
+could be nil. Use golangci-lint's `nilnil` checker.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "json-unexported-fields"
+summary = "json.Marshal silently skips unexported struct fields"
+detail = """
+Struct fields starting with lowercase letters are unexported and completely invisible
+to encoding/json. No error, no warning — they just disappear from the output. This
+also applies to embedded structs: if the embedded type is unexported, its fields
+are invisible. Always use exported fields with json tags for API types.
+"""
+severity = "medium"
+
+[[gotcha]]
+id = "test-parallel-race"
+summary = "t.Parallel() tests share the loop variable in Go < 1.22"
+detail = """
+In Go < 1.22, this is a data race: `for _, tc := range cases { t.Run(tc.name, func(t *testing.T) { t.Parallel(); use(tc) })}`
+All parallel subtests capture the same `tc` variable. Fix: add `tc := tc` inside the loop.
+Go 1.22+ fixes this with per-iteration variable scoping, but only if go.mod says `go 1.22`.
+"""
+severity = "medium"

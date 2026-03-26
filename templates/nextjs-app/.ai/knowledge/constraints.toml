@@ -1,0 +1,31 @@
+# Next.js environment constraints — deployment and runtime boundaries
+
+[[constraint]]
+id = "vercel-function-size"
+summary = "Serverless function bundles have a 50MB limit on Vercel"
+detail = """
+Each API route and Server Component renders as a serverless function. If your
+node_modules or bundled assets push a function over 50MB, deployment fails silently
+or the function times out. Watch for heavy dependencies like sharp, puppeteer, or
+prisma (which bundles query engines). Use `@next/bundle-analyzer` to track sizes.
+"""
+
+[[constraint]]
+id = "isr-cache-shared"
+summary = "ISR cache is per-region, not global — stale data varies by edge location"
+detail = """
+When using Incremental Static Regeneration, each deployment region maintains its own
+cache. A revalidation in us-east-1 does not invalidate eu-west-1. Users in different
+regions may see different data for up to the full revalidation window. For global
+consistency, use on-demand revalidation with revalidateTag() instead of time-based.
+"""
+
+[[constraint]]
+id = "env-var-build-bake"
+summary = "NEXT_PUBLIC_ variables are baked at build time, not runtime"
+detail = """
+Environment variables prefixed with NEXT_PUBLIC_ are inlined into the JavaScript
+bundle during `next build`. Changing them in the deployment environment has NO effect
+without a rebuild. For runtime configuration, use server-side env vars and pass values
+through API routes or Server Components.
+"""

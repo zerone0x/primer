@@ -1,0 +1,20 @@
+phase: growth
+description: "Adding features -- fastcache has users and must stay Redis-compatible"
+guidance:
+  do:
+    - "Implement TTL expiration using a background reaper task on tokio::time::interval"
+    - "Add RESP3 support alongside RESP2 -- negotiate via HELLO command"
+    - "Add structured logging via tracing with span-per-connection for debugging"
+    - "Implement pipelining -- clients expect to send multiple commands without waiting"
+    - "Add benchmarks using criterion comparing against a real Redis instance"
+    - "Set up cross-compilation in CI for Linux (musl), macOS, and Windows"
+  do_not:
+    - "Do not break existing RESP2 command format -- deprecate with warnings first"
+    - "Do not use unsafe for performance without a safety comment and benchmark proof"
+    - "Do not add Lua scripting support -- it massively increases attack surface"
+    - "Do not store values larger than 512MB -- reject at parse time with an error"
+exit_criteria:
+  - "All supported commands pass the official Redis test suite subset"
+  - "P99 latency under 1ms for GET/SET with 1000 concurrent connections"
+  - "CI produces release binaries for Linux, macOS, and Windows"
+  - "CHANGELOG tracks breaking changes with migration notes"

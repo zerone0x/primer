@@ -1,0 +1,20 @@
+version: "1"
+project:
+  name: ""  # filled by paic init
+  description: ""
+phase: bootstrap
+constraints:
+  - "Ship both CJS and ESM — use package.json exports map with separate build targets, never rely on bundler interop"
+  - "Never re-export everything from index.ts barrel files — each entry point must be explicit to avoid tree-shaking failures"
+  - "All public API types must be exported from the root — consumers should never import from deep paths"
+  - "Peer dependencies must specify version ranges, not exact versions — exact versions cause duplicate installs"
+  - "Run the build before publishing and verify the output with 'npm pack --dry-run' — never trust tsc alone"
+build:
+  test: "vitest run"
+  lint: "eslint . --max-warnings 0"
+  fmt: "prettier --check ."
+  build: "tsup"
+  typecheck: "tsc --noEmit"
+stack:
+  language: "TypeScript"
+  framework: "tsup"

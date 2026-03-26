@@ -1,0 +1,26 @@
+# build-patterns.toml — Common build commands per stack
+# Selected automatically by paic_detect_stack() during `paic init`
+
+[rust]
+test = "cargo test"
+lint = "cargo clippy -- -D warnings"
+build = "cargo build --release"
+fmt = "cargo fmt --check"
+
+[node]
+test = "npm test"
+lint = "npm run lint"
+build = "npm run build"
+fmt = "npx prettier --check ."
+
+[python]
+test = "pytest"
+lint = "ruff check ."
+build = "python -m build"
+fmt = "ruff format --check ."
+
+[go]
+test = "go test ./..."
+lint = "golangci-lint run"
+build = "go build ./..."
+fmt = "gofmt -l ."

@@ -1,0 +1,57 @@
+# Python API gotchas — the ones that cause 3am pages
+
+[[gotcha]]
+id = "alembic-autogenerate-misses"
+summary = "alembic autogenerate misses column type changes and constraints"
+detail = """
+`alembic revision --autogenerate` does NOT detect changes to column types, CHECK
+constraints, or enum values. It only reliably detects added/removed tables and columns.
+Always review generated migrations manually. Add `compare_type=True` to env.py for
+basic type change detection, but do not trust it for anything beyond simple type swaps.
+"""
+severity = "critical"
+
+[[gotcha]]
+id = "async-db-sessions"
+summary = "SQLAlchemy async sessions silently return expired objects"
+detail = """
+After an await in an async endpoint, SQLAlchemy objects fetched before the await may
+be expired (detached from session). Accessing their attributes triggers a lazy load,
+which raises MissingGreenlet in async mode. Always use `selectinload()` or
+`joinedload()` to eagerly load relationships before any await boundary.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "fastapi-dependency-scope"
+summary = "FastAPI dependencies are per-request by default, not singleton"
+detail = """
+A Depends() function runs on every request. If you create a database connection in
+a dependency, you get a new connection per request. For connection pools, create the
+pool at module level and yield connections from the dependency. Never put pool creation
+inside a Depends() function.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "pydantic-v2-breaking"
+summary = "Pydantic v1 and v2 have incompatible APIs — check which version you are on"
+detail = """
+Pydantic v2 renamed .dict() to .model_dump(), .parse_obj() to .model_validate(),
+and changed validator decorators from @validator to @field_validator. Code that works
+on v1 silently breaks or behaves differently on v2. Pin your Pydantic version and
+never mix v1/v2 patterns in the same codebase.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "circular-import-fastapi"
+summary = "Circular imports between routers and models crash silently at startup"
+detail = """
+If router A imports Model from models.py, and models.py imports something from router A,
+Python raises ImportError at startup with an unhelpful traceback. Use TYPE_CHECKING
+imports for type hints: `from __future__ import annotations` and
+`if TYPE_CHECKING: from .models import Model`. Keep models in their own module with
+zero application imports.
+"""
+severity = "medium"

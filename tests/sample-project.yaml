@@ -1,0 +1,32 @@
+name: acme-api
+description: REST API for the Acme widget platform
+language: TypeScript
+framework: Express
+build: npm run build
+test: npm test
+lint: npm run lint
+dev: npm run dev
+phase: mvp
+phase_guidance: Focus on core CRUD endpoints. Skip optimization.
+constraints:
+  - Always return proper HTTP status codes
+  - Use Zod for request validation
+  - No raw SQL — use Prisma ORM
+  - Keep handlers under 50 lines
+skills:
+  - name: database
+    file: database.md
+    scope: database queries
+    description: Prisma schema patterns and migration workflow
+  - name: auth
+    file: auth.md
+    scope: authentication
+    description: JWT auth middleware and refresh token flow
+agents:
+  - name: reviewer
+    role: Code review agent
+    instructions: Check for security issues and missing validation
+  - name: tester
+    role: Test generation agent
+    instructions: Generate integration tests for new endpoints
+memory_guidance: Store API design decisions and schema evolution notes.

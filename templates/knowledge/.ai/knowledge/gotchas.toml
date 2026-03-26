@@ -1,0 +1,7 @@
+# Gotchas: things that look wrong but are intentional
+# Format: [id] summary, applies_to, severity
+
+# [example-gotcha]
+# summary = "Description of the intentional quirk"
+# applies_to = ["src/module/**"]
+# severity = "high"  # high | medium | low

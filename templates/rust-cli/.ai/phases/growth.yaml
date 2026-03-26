@@ -1,0 +1,19 @@
+phase: growth
+description: "Adding features — the CLI has users and needs to stay reliable"
+guidance:
+  do:
+    - "Split into lib.rs + main.rs so logic is testable without running the binary"
+    - "Add shell completion generation (clap_complete) — users expect this"
+    - "Add structured output (--format json) for scriptability"
+    - "Set up cross-compilation in CI for Linux, macOS, and Windows"
+    - "Add cargo-deny to CI to catch license violations and known vulnerabilities"
+  do_not:
+    - "Do not break existing CLI flags — deprecate with warnings first, remove in next major"
+    - "Do not add config file support until at least 3 users request it"
+    - "Do not use unsafe without a safety comment explaining the invariant"
+    - "Do not pull in large framework crates (tokio, etc.) for one small feature"
+exit_criteria:
+  - "Library code is separated from CLI entry point"
+  - "CI produces release binaries for all target platforms"
+  - "All public APIs have doc comments with examples"
+  - "CHANGELOG tracks breaking changes with migration notes"

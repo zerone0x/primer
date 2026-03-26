@@ -1,0 +1,18 @@
+phase: bootstrap
+description: "Initial project setup — get a working binary that does one thing"
+guidance:
+  do:
+    - "Start with a single binary crate, not a workspace — split later when you have a reason"
+    - "Set up cargo clippy and cargo fmt in CI before writing any logic"
+    - "Define the error type hierarchy early — retrofitting error types is painful"
+    - "Use assert_cmd + predicates for CLI integration tests from day one"
+  do_not:
+    - "Do not create a library crate yet — wait until you have code worth sharing"
+    - "Do not add async runtime unless you need concurrent I/O — sync is simpler for CLIs"
+    - "Do not write custom derive macros — use existing crates or plain implementations"
+    - "Do not optimize for binary size yet — correctness first"
+exit_criteria:
+  - "Binary compiles on stable Rust with zero clippy warnings"
+  - "At least one integration test exercises the main command path"
+  - "CI runs test, clippy, and fmt checks on every push"
+  - "README has install instructions and one usage example"

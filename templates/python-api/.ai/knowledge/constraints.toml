@@ -1,0 +1,31 @@
+# Python API environment constraints — runtime and deployment boundaries
+
+[[constraint]]
+id = "venv-isolation"
+summary = "Always use a virtual environment — never install to system Python"
+detail = """
+System Python is managed by the OS package manager. Installing packages globally
+can break system tools (e.g., apt on Ubuntu). Use `python -m venv .venv` and activate
+before any pip install. CI must create a fresh venv per run. If using Docker, the
+container IS the isolation — skip venv in Dockerfiles to avoid confusion.
+"""
+
+[[constraint]]
+id = "migration-safety"
+summary = "Database migrations must be backward-compatible with the running code"
+detail = """
+In a zero-downtime deployment, old code runs while new migrations apply. Dropping a
+column that old code reads causes 500s. Safe migration pattern: (1) add new column,
+(2) deploy code that writes both, (3) backfill, (4) deploy code that reads new only,
+(5) drop old column. Never combine destructive migration + code change in one deploy.
+"""
+
+[[constraint]]
+id = "type-checking-strict"
+summary = "mypy strict mode must pass in CI — no type: ignore without explanation"
+detail = """
+Run `mypy --strict` in CI. Every `# type: ignore` must include a justification comment
+explaining why the suppression is necessary. Without strict mode, type errors
+accumulate silently and the type system provides false confidence. Use pyright for
+faster local checks, but mypy is the CI gate.
+"""

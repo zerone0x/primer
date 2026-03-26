@@ -1,0 +1,51 @@
+# Rust CLI gotchas — things that waste hours if you don't know them
+
+[[gotcha]]
+id = "cargo-test-stdout"
+summary = "cargo test captures stdout by default"
+detail = """
+Tests that print to stdout will show nothing on success. Use `cargo test -- --nocapture`
+to see output, or better yet, assert on values instead of eyeballing print output.
+This trips up everyone writing their first CLI tests.
+"""
+severity = "medium"
+
+[[gotcha]]
+id = "clap-derive-breaking"
+summary = "clap derive macros silently change behavior across major versions"
+detail = """
+clap 3->4 changed how subcommands, value_parser, and default_value work in derive mode.
+Copying StackOverflow answers from the wrong version produces confusing compile errors.
+Always check which clap version is in Cargo.lock before copying examples.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "static-linking-macos"
+summary = "Static linking with musl does not work on macOS without cross-compilation"
+detail = """
+`cargo build --target x86_64-unknown-linux-musl` requires a cross-compiler on macOS.
+Use `cross` (https://github.com/cross-rs/cross) or build in CI on native Linux.
+Do not waste time trying to install musl-gcc on macOS via Homebrew.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "stderr-vs-stdout"
+summary = "Piping breaks if CLI mixes human output with data on stdout"
+detail = """
+If your CLI outputs JSON or CSV for piping, ALL human-readable messages (progress bars,
+warnings, help text) must go to stderr via eprintln!(). A single stray println!() will
+corrupt piped output. Use `writeln!(std::io::stderr(), ...)` in library code.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "cargo-feature-unification"
+summary = "Cargo unifies features across the dependency graph"
+detail = """
+If crate A depends on serde with 'derive' and crate B depends on serde without it,
+both get 'derive'. This means your lib may accidentally rely on features enabled by
+other crates in the workspace. Test each crate in isolation: `cargo test -p my-crate`.
+"""
+severity = "medium"

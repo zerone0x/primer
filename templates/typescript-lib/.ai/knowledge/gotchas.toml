@@ -1,0 +1,58 @@
+# TypeScript library gotchas — the ones that break your consumers
+
+[[gotcha]]
+id = "dual-package-hazard"
+summary = "CJS and ESM versions of your package can both be loaded, causing duplicate state"
+detail = """
+If your package has mutable state (singletons, registries, caches), a consumer using
+both CJS require() and ESM import can get two separate instances. This causes bugs
+like 'instanceof fails' or 'registry is empty'. Use package.json exports map to
+ensure a single entry point per format. Test with both `require('pkg')` and
+`import('pkg')` in the same process.
+"""
+severity = "critical"
+
+[[gotcha]]
+id = "declaration-emit-breaks"
+summary = "tsc declaration emit fails silently when types reference private modules"
+detail = """
+If a public function returns a type that lives in a non-exported internal module,
+tsc generates a .d.ts that references a path consumers cannot access. The build
+succeeds but consumers get 'Cannot find module' errors. Run `tsc --declaration` and
+verify that generated .d.ts files do not reference internal paths. Use `api-extractor`
+to catch this early.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "barrel-export-treeshake"
+summary = "Barrel index.ts re-exports defeat tree-shaking in most bundlers"
+detail = """
+`export * from './utils'` in index.ts forces bundlers to include ALL of utils even
+if the consumer only uses one function. This is because side effects cannot be
+statically ruled out. Mark `"sideEffects": false` in package.json AND use explicit
+named exports instead of `export *`. Test bundle size with `bundlephobia` or
+`size-limit` in CI.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "peer-dep-exact-version"
+summary = "Exact peer dependency versions cause npm install failures in consumers"
+detail = """
+If you specify `"peerDependencies": {"react": "18.2.0"}` (exact), any consumer on
+React 18.2.1 gets a peer dependency conflict. Always use ranges: `"react": "^18.0.0"`.
+npm 7+ auto-installs peer deps, so conflicts cause hard failures, not just warnings.
+"""
+severity = "high"
+
+[[gotcha]]
+id = "tsconfig-target-emit"
+summary = "tsconfig target affects emitted code but NOT type checking"
+detail = """
+Setting `target: ES5` makes tsc downlevel async/await to generators, but type
+checking still allows all modern APIs. Your code type-checks fine, then fails at
+runtime in older environments because Array.from or Promise.allSettled is missing.
+Use `lib` to control available type definitions separately from `target`.
+"""
+severity = "medium"

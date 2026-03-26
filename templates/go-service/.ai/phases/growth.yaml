@@ -1,0 +1,19 @@
+phase: growth
+description: "Adding features — the service has traffic and observability matters"
+guidance:
+  do:
+    - "Add OpenTelemetry tracing before you add more endpoints — retrofitting is painful"
+    - "Implement middleware chain: logging, tracing, recovery, auth (in that order)"
+    - "Use errgroup for concurrent operations instead of raw goroutines + channels"
+    - "Add integration tests with build tag //go:build integration in a separate CI step"
+    - "Set up structured logging (slog in Go 1.21+) with request-scoped fields"
+  do_not:
+    - "Do not use channels for request-scoped data — use context.WithValue sparingly, prefer explicit params"
+    - "Do not create generic helper packages (utils, common, helpers) — put code where it is used"
+    - "Do not expose internal types in API responses — create separate DTO structs"
+    - "Do not use go:generate for anything that could be a build step instead"
+exit_criteria:
+  - "All endpoints have structured logging with trace correlation"
+  - "Graceful shutdown drains in-flight requests within the timeout"
+  - "Integration tests run in CI against real dependencies (database, cache)"
+  - "Go module dependencies are scanned for vulnerabilities (govulncheck)"

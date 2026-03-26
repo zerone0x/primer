@@ -1,0 +1,19 @@
+phase: bootstrap
+description: "Initial project setup -- get a working TCP server that handles PING/PONG"
+guidance:
+  do:
+    - "Start with a single binary crate -- split into lib + bin after basic protocol works"
+    - "Implement PING, ECHO, and GET/SET first -- these validate the full request/response path"
+    - "Set up cargo clippy and cargo fmt in CI before writing any command handlers"
+    - "Write integration tests that connect via TCP and send raw RESP commands"
+    - "Define the error type hierarchy early -- retrofitting error types across async boundaries is painful"
+  do_not:
+    - "Do not implement persistence (RDB/AOF) yet -- in-memory only until the protocol layer is solid"
+    - "Do not add clustering or replication -- single-node correctness first"
+    - "Do not optimize DashMap shard count yet -- defaults are fine for initial development"
+    - "Do not implement AUTH or TLS -- plaintext TCP until the command set is complete"
+exit_criteria:
+  - "Server accepts TCP connections and responds to PING with PONG"
+  - "GET/SET/DEL commands work correctly with string values"
+  - "At least 5 integration tests exercise the command path end-to-end"
+  - "CI runs test, clippy, and fmt checks on every push"

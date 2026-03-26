@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://primer.dev/schema/proposal.v1.json",
+  "title": "Primer Evolution Proposal",
+  "description": "Schema for proposals that modify project configuration",
+  "type": "object",
+  "required": ["type", "agent", "confidence", "trigger", "change"],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "add_gotcha",
+        "update_constraint",
+        "create_skill",
+        "patch_skill",
+        "add_decision",
+        "update_build",
+        "phase_change"
+      ],
+      "description": "Kind of evolution proposal"
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[a-zA-Z0-9._-]+$",
+      "description": "Identifier of the agent submitting the proposal"
+    },
+    "session": {
+      "type": "string",
+      "description": "Optional session identifier for traceability"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Agent confidence in this proposal, 0.0 to 1.0"
+    },
+    "trigger": {
+      "type": "string",
+      "enum": ["failure", "discovery", "optimization", "user-request"],
+      "description": "What triggered this proposal"
+    },
+    "change": {
+      "type": "object",
+      "required": ["id", "summary"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique identifier for this change"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Human-readable summary of the change"
+        },
+        "applies_to": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns indicating which files this change applies to"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["high", "medium", "low"],
+          "description": "Severity or importance of the change"
+        },
+        "content": {
+          "type": "string",
+          "description": "The actual change content (constraint text, skill definition, etc.)"
+        },
+        "old_value": {
+          "type": "string",
+          "description": "Previous value being replaced (for updates)"
+        },
+        "new_value": {
+          "type": "string",
+          "description": "New value being set (for updates)"
+        },
+        "new_phase": {
+          "type": "string",
+          "enum": ["bootstrap", "growth", "mature", "legacy"],
+          "description": "Target phase (for phase_change proposals)"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Detailed reasoning for this change"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

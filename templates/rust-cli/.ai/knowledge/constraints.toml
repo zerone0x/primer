@@ -1,0 +1,31 @@
+# Rust CLI environment constraints — things the toolchain enforces
+
+[[constraint]]
+id = "msrv-pinning"
+summary = "MSRV must be explicitly set and CI-tested"
+detail = """
+Set `rust-version = "1.XX"` in Cargo.toml. Without this, dependencies may silently
+require a newer compiler than your users have. CI must test with the pinned MSRV,
+not just stable. Use `cargo msrv` to verify the minimum version is accurate.
+"""
+
+[[constraint]]
+id = "binary-size-budget"
+summary = "Release binaries should be stripped and LTO-enabled"
+detail = """
+Default release builds include debug symbols (~10-50MB). Add to Cargo.toml:
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+This reduces binary size by 50-80%. CI should fail if the binary exceeds a size threshold.
+"""
+
+[[constraint]]
+id = "cross-platform-paths"
+summary = "Never hardcode path separators — use std::path::Path"
+detail = """
+Rust's std::path handles platform differences. Using "/" directly in path construction
+works on macOS/Linux but fails on Windows. Always use Path::join() or PathBuf.
+Also: never assume HOME is at /home — use dirs::home_dir() or the dirs crate.
+"""

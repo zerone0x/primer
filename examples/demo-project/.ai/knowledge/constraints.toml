@@ -1,0 +1,11 @@
+# fastcache constraints -- invisible walls the agent must respect
+
+[no-std-mutex]
+summary = "Never use std::sync::Mutex in async code -- use tokio::sync::Mutex or DashMap instead"
+applies_to = ["src/**"]
+severity = "high"
+
+[resp-compat]
+summary = "All commands must pass the official Redis test suite for the subset we support -- no custom extensions"
+applies_to = ["src/commands/**", "src/protocol/**"]
+severity = "high"

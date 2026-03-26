@@ -1,0 +1,12 @@
+[meta]
+version = "1.0"
+project = ""
+created = ""
+last_pruned = ""
+
+[budget]
+tier0_max_tokens = 200
+tier1_max_tokens = 1500
+tier2_max_tokens = 5000
+
+# Entries added dynamically

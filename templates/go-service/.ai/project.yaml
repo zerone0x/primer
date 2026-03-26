@@ -1,0 +1,19 @@
+version: "1"
+project:
+  name: ""  # filled by paic init
+  description: ""
+phase: bootstrap
+constraints:
+  - "Always wrap errors with fmt.Errorf and %w — never %v — so callers can use errors.Is/As"
+  - "Every function that does I/O must accept context.Context as its first parameter"
+  - "Use build tags (//go:build integration) to separate integration tests — never mix with unit tests"
+  - "Module path must match the repository URL — mismatches break go install for consumers"
+  - "Never use init() functions — they create hidden coupling and make testing unpredictable"
+build:
+  test: "go test ./..."
+  lint: "golangci-lint run"
+  build: "go build -o bin/ ./cmd/..."
+  integration: "go test -tags=integration ./..."
+stack:
+  language: "Go"
+  framework: "stdlib (net/http)"

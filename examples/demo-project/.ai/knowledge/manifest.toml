@@ -1,0 +1,17 @@
+[meta]
+version = "1.0"
+project = "fastcache"
+created = "2026-03-10T08:00:00Z"
+last_pruned = ""
+
+[budget]
+tier0_max_tokens = 200
+tier1_max_tokens = 1500
+tier2_max_tokens = 5000
+
+[entry.0001-use-tokio]
+type = "decision"
+summary = "Use Tokio as the async runtime"
+applies_to = "src/**"
+severity = "high"
+added = "2026-03-10T08:00:00Z"

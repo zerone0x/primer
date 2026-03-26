@@ -1,0 +1,17 @@
+version: "1"
+project:
+  name: ""  # filled by paic init
+  description: ""
+phase: bootstrap
+constraints:
+  - "Use thiserror for library errors, anyhow for binary errors — never mix them"
+  - "All CLI output goes through stderr; only structured data goes to stdout"
+  - "Pin MSRV in Cargo.toml and test in CI — do not use nightly-only features"
+build:
+  test: "cargo test"
+  lint: "cargo clippy -- -D warnings"
+  fmt: "cargo fmt --check"
+  build: "cargo build --release"
+stack:
+  language: "Rust"
+  framework: "clap"

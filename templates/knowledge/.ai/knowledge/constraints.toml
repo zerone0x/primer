@@ -1,0 +1,7 @@
+# Constraints: invisible walls the agent must respect
+# Format: [id] summary, applies_to, severity
+
+# [example-constraint]
+# summary = "Description of the environment constraint"
+# applies_to = ["**"]
+# severity = "high"  # high | medium | low

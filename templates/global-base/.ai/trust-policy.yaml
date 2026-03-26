@@ -1,0 +1,28 @@
+# trust-policy.yaml — Trust levels for cross-agent evolution
+# Controls what each agent type can modify without human review.
+
+trust_levels:
+  human:
+    can_modify: [all]
+  claude-code:
+    can_modify: [gotchas, skills, knowledge, build]
+    cannot_modify: [constraints, trust-policy]
+    max_confidence_auto_apply: 0.9
+  codex:
+    can_modify: [gotchas, skills]
+    cannot_modify: [constraints, trust-policy, knowledge]
+    max_confidence_auto_apply: 0.8
+  cursor:
+    can_modify: [gotchas]
+    cannot_modify: [constraints, trust-policy, knowledge, skills]
+    max_confidence_auto_apply: 0.7
+  default:
+    can_modify: [gotchas]
+    cannot_modify: [constraints, trust-policy]
+    max_confidence_auto_apply: 0.5
+
+conflict_resolution:
+  default: highest_confidence
+  constraints: human_review
+  skills: auto_merge
+  gotchas: latest_wins

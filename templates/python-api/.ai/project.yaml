@@ -1,0 +1,19 @@
+version: "1"
+project:
+  name: ""  # filled by paic init
+  description: ""
+phase: bootstrap
+constraints:
+  - "Never run alembic upgrade in application startup — migrations run as a separate deploy step only"
+  - "Pin all dependencies to exact versions in requirements.txt; use pip-compile for resolution"
+  - "All endpoint handlers must have explicit return type annotations — no implicit Any returns"
+  - "Never commit .env files; use .env.example with placeholder values for documentation"
+  - "Use Pydantic models for all request/response bodies — never pass raw dicts across module boundaries"
+build:
+  test: "pytest -x --tb=short"
+  lint: "ruff check ."
+  fmt: "ruff format --check ."
+  typecheck: "mypy --strict src/"
+stack:
+  language: "Python"
+  framework: "FastAPI"

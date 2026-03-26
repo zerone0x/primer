@@ -1,0 +1,19 @@
+version: "1"
+project:
+  name: ""  # filled by paic init
+  description: ""
+phase: bootstrap
+constraints:
+  - "Never import server-only code in 'use client' components — this leaks secrets to the browser bundle"
+  - "Environment variables without NEXT_PUBLIC_ prefix are server-only; do not attempt client-side access"
+  - "Default to Server Components — only add 'use client' when you need useState, useEffect, or browser APIs"
+  - "Never call fetch() with full URLs in Server Components — use relative paths so it works in all environments"
+  - "Put shared types in a top-level /types directory, never co-locate with route handlers"
+build:
+  test: "npm test"
+  lint: "next lint"
+  fmt: "prettier --check ."
+  build: "next build"
+stack:
+  language: "TypeScript"
+  framework: "Next.js (App Router)"

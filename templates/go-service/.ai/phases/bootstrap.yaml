@@ -1,0 +1,19 @@
+phase: bootstrap
+description: "Initial service setup — get a deployable HTTP server with proper foundations"
+guidance:
+  do:
+    - "Start with stdlib net/http — add a router (chi, gorilla/mux) only when you outgrow it"
+    - "Set up golangci-lint with a .golangci.yml config before writing any handlers"
+    - "Create a health endpoint that checks all downstream dependencies"
+    - "Pass context.Context through every function that does I/O from day one"
+    - "Define your error type and wrapping convention before writing business logic"
+  do_not:
+    - "Do not use a framework (gin, echo, fiber) without a specific reason — stdlib is fine for most services"
+    - "Do not use init() functions — pass dependencies explicitly through constructors"
+    - "Do not use goroutines until you have a use case — start synchronous"
+    - "Do not use interface{}/any for API request/response types — define structs"
+exit_criteria:
+  - "Service starts, serves health check, and shuts down gracefully on SIGTERM"
+  - "golangci-lint passes with zero warnings"
+  - "At least one handler has a test using httptest"
+  - "CI runs go test, go vet, and golangci-lint on every push"

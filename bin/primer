@@ -1,0 +1,428 @@
+#!/usr/bin/env bash
+# primer — Portable AI Infrastructure Config
+# Core CLI entry point. Everything else is a plugin.
+set -euo pipefail
+
+Primer_VERSION="0.1.0"
+Primer_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ---------------------------------------------------------------------------
+# Colors & output helpers
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+  BOLD='\033[1m' DIM='\033[2m' RESET='\033[0m'
+  RED='\033[31m' GREEN='\033[32m' YELLOW='\033[33m' BLUE='\033[34m' CYAN='\033[36m'
+else
+  BOLD='' DIM='' RESET='' RED='' GREEN='' YELLOW='' BLUE='' CYAN=''
+fi
+
+primer_info()    { echo -e "${BLUE}[primer]${RESET} $*"; }
+primer_success() { echo -e "${GREEN}[primer]${RESET} $*"; }
+primer_warn()    { echo -e "${YELLOW}[primer]${RESET} $*" >&2; }
+primer_error()   { echo -e "${RED}[primer]${RESET} $*" >&2; }
+primer_die()     { primer_error "$@"; exit 1; }
+
+# ---------------------------------------------------------------------------
+# Load libraries
+# ---------------------------------------------------------------------------
+source "$Primer_ROOT/lib/core.sh"
+source "$Primer_ROOT/lib/emit.sh"
+source "$Primer_ROOT/lib/evolve.sh"
+source "$Primer_ROOT/lib/init.sh"
+source "$Primer_ROOT/lib/hooks.sh"
+source "$Primer_ROOT/lib/seams.sh"
+source "$Primer_ROOT/lib/mcp.sh"
+source "$Primer_ROOT/lib/kpl.sh"
+
+# Discover .ai/ sources on startup
+primer_discover_sources
+
+# ---------------------------------------------------------------------------
+# Subcommands
+# ---------------------------------------------------------------------------
+
+cmd_init() {
+  local template=""
+  local list_only=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --template|-t) template="$2"; shift 2 ;;
+      --list|-l) list_only=1; shift ;;
+      --help|-h)
+        echo "Usage: primer init [--template NAME] [--list]"
+        echo
+        echo "Initialize a .ai/ directory in the current project."
+        echo
+        echo "Options:"
+        echo "  --template, -t NAME    Use a specific template"
+        echo "  --list, -l             List available templates"
+        echo
+        echo "If no template is specified, primer auto-detects the stack"
+        echo "from project files (Cargo.toml, package.json, go.mod, etc.)."
+        return 0
+        ;;
+      *) primer_die "Unknown option: $1" ;;
+    esac
+  done
+
+  if [[ $list_only -eq 1 ]]; then
+    primer_info "Available templates:"
+    primer_list_templates
+    return 0
+  fi
+
+  primer_init "$template"
+}
+
+cmd_emit() {
+  if [[ $# -eq 0 || "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: primer emit <target|--all>"
+    echo
+    echo "Generate tool-native config from canonical .ai/ config."
+    echo
+    echo "Targets:"
+    echo "  claude-md      Generate CLAUDE.md"
+    echo "  agents-md      Generate agents.md"
+    echo "  cursorrules    Generate .cursorrules"
+    echo "  --all          Emit all registered targets"
+    echo "  --list         List available generators"
+    [[ $# -eq 0 ]] && return 1
+    return 0
+  fi
+
+  primer_load_config || primer_warn "No project.yaml found; generators may produce defaults"
+
+  case "$1" in
+    --all)  primer_emit_all ;;
+    --list) primer_emit_list ;;
+    *)      primer_emit "$1" ;;
+  esac
+}
+
+cmd_evolve() {
+  local auto=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --auto) auto="--auto"; shift ;;
+      --help|-h) echo "Usage: primer evolve [--auto]"; echo; echo "Process evolution proposals from .ai/evolution/proposals/"; return 0 ;;
+      *) primer_die "Unknown option: $1" ;;
+    esac
+  done
+  primer_evolve $auto
+}
+
+cmd_kpl() {
+  local sub="${1:-}"
+  case "$sub" in
+    ""|--help|-h)
+      echo "Usage: primer kpl <subcommand>"
+      echo
+      echo "Knowledge Persistence Layer"
+      echo
+      echo "Subcommands:"
+      echo "  init                                      Initialize knowledge store"
+      echo "  add <type> <id> <summary> <globs> [sev]   Add knowledge entry"
+      echo "  query <path> [path...]                    Query knowledge base by file path"
+      echo "  prune [--apply]                           Remove stale entries"
+      echo "  budget                                    Show knowledge budget usage"
+      echo
+      echo "Types: gotcha, constraint, failure, decision"
+      return 0
+      ;;
+    init)
+      local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
+      export Primer_KPL_DIR="$ai_dir/knowledge"
+      primer_kpl_init "$Primer_KPL_DIR"
+      ;;
+    add)
+      shift
+      local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
+      export Primer_KPL_DIR="$ai_dir/knowledge"
+      primer_kpl_add "$@"
+      ;;
+    query)
+      shift
+      local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
+      export Primer_KPL_DIR="$ai_dir/knowledge"
+      primer_kpl_query "$@"
+      ;;
+    prune)
+      shift
+      local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
+      export Primer_KPL_DIR="$ai_dir/knowledge"
+      primer_kpl_prune "${1:---dry-run}"
+      ;;
+    budget)
+      local ai_dir="${Primer_SOURCES[0]:-$PWD/.ai}"
+      export Primer_KPL_DIR="$ai_dir/knowledge"
+      primer_kpl_budget
+      ;;
+    *) primer_die "Unknown kpl subcommand: $sub" ;;
+  esac
+}
+
+cmd_validate() {
+  if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    echo "Usage: primer validate"
+    echo
+    echo "Validate project.yaml and all configs."
+    return 0
+  fi
+
+  local errors=0
+
+  # Check for project.yaml
+  if primer_load_config; then
+    primer_success "Found project.yaml: $Primer_CONFIG_FILE"
+  else
+    primer_error "No project.yaml found"
+    errors=$((errors + 1))
+  fi
+
+  # Check required fields
+  if [[ -n "${Primer_CONFIG_FILE:-}" ]]; then
+    local name; name=$(primer_config_get "project.name" 2>/dev/null)
+    if [[ -z "$name" || "$name" == "null" ]]; then
+      primer_error "Missing required field: project.name"
+      errors=$((errors + 1))
+    else
+      primer_success "project.name: $name"
+    fi
+  fi
+
+  # Run validator plugins
+  local validators
+  validators=$(primer_discover_plugins "validators")
+  if [[ -n "$validators" ]]; then
+    while IFS= read -r v; do
+      primer_info "Running validator: $(basename "$v")"
+      if "$v"; then
+        primer_success "Passed: $(basename "$v")"
+      else
+        primer_error "Failed: $(basename "$v")"
+        errors=$((errors + 1))
+      fi
+    done <<< "$validators"
+  fi
+
+  if [[ $errors -gt 0 ]]; then
+    primer_error "Validation failed with $errors error(s)"
+    return 1
+  fi
+  primer_success "Validation passed"
+}
+
+cmd_budget() {
+  if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    echo "Usage: primer budget"
+    echo
+    echo "Show token budget usage across all .ai/ sources."
+    return 0
+  fi
+
+  local total=0
+  for src in "${Primer_SOURCES[@]}"; do
+    local sz=0
+    while IFS= read -r -d '' f; do
+      local fsz; fsz=$(wc -c < "$f" | tr -d ' ')
+      sz=$((sz + fsz))
+    done < <(find "$src" -type f -print0 2>/dev/null)
+    primer_info "$src: ${sz} bytes"
+    total=$((total + sz))
+  done
+
+  local max; max=$(primer_config_get "budget.max_tokens" 2>/dev/null || echo "100000")
+  [[ "$max" == "null" || -z "$max" ]] && max=100000
+
+  primer_info "Total: ${total} bytes / ${max} max"
+  if [[ $total -gt $max ]]; then
+    primer_warn "Over budget by $((total - max)) bytes"
+  fi
+}
+
+cmd_log() {
+  local agent="" since=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="$2"; shift 2 ;;
+      --since) since="$2"; shift 2 ;;
+      --help|-h)
+        echo "Usage: primer log [--agent NAME] [--since DATE]"
+        echo
+        echo "Query the evolution log."
+        return 0
+        ;;
+      *) primer_die "Unknown option: $1" ;;
+    esac
+  done
+  primer_log_query ${agent:+--agent "$agent"} ${since:+--since "$since"}
+}
+
+cmd_hooks() {
+  local sub="${1:-}"
+  case "$sub" in
+    ""|--help|-h)
+      echo "Usage: primer hooks <subcommand>"
+      echo
+      echo "Hook management"
+      echo
+      echo "Subcommands:"
+      echo "  list              List all hooks across all stages"
+      echo "  run <stage>       Run hooks for a lifecycle stage"
+      echo "  install <src> <stage> [priority]  Install a hook"
+      echo "  test <stage>      Dry-run hooks for a stage"
+      return 0
+      ;;
+    list) primer_hooks_list ;;
+    run)
+      shift
+      local stage="${1:?stage required}"; shift
+      local input="${1:-{\}}"
+      primer_hooks_run "$stage" "$input"
+      ;;
+    install)
+      shift
+      primer_hooks_install "$@"
+      ;;
+    test)
+      shift
+      primer_hooks_test "$@"
+      ;;
+    *) primer_die "Unknown hooks subcommand: $sub" ;;
+  esac
+}
+
+cmd_seams() {
+  local sub="${1:-}"
+  case "$sub" in
+    ""|--help|-h)
+      echo "Usage: primer seams <subcommand>"
+      echo
+      echo "Seam management — sync .ai/ to tool-native formats"
+      echo
+      echo "Subcommands:"
+      echo "  sync              Sync configs to all detected tools"
+      echo "  detect            Detect installed AI tools"
+      echo "  status            Show sync status (stale/current)"
+      echo "  diff <target>     Show diff between canonical and generated"
+      return 0
+      ;;
+    sync)   primer_seams_sync ;;
+    detect) primer_seams_detect ;;
+    status) primer_seams_status ;;
+    diff)
+      shift
+      primer_seams_diff "$@"
+      ;;
+    *) primer_die "Unknown seams subcommand: $sub" ;;
+  esac
+}
+
+cmd_mcp() {
+  local sub="${1:-}"
+  case "$sub" in
+    ""|--help|-h)
+      echo "Usage: primer mcp <subcommand>"
+      echo
+      echo "MCP server management"
+      echo
+      echo "Subcommands:"
+      echo "  list              List MCP servers defined in .ai/"
+      echo "  sync              Sync MCP config to .mcp.json"
+      echo "  add <name> <cmd> [args]  Add an MCP server definition"
+      return 0
+      ;;
+    list) primer_mcp_list ;;
+    sync) primer_mcp_sync ;;
+    add)
+      shift
+      primer_mcp_add "$@"
+      ;;
+    *) primer_die "Unknown mcp subcommand: $sub" ;;
+  esac
+}
+
+cmd_help() {
+  echo -e "${BOLD}primer${RESET} v${Primer_VERSION} — Portable AI Infrastructure Config"
+  echo
+  echo -e "${BOLD}Usage:${RESET} primer <command> [options]"
+  echo
+  echo -e "${BOLD}Commands:${RESET}"
+  echo "  init [--template NAME]     Initialize .ai/ from template (auto-detects stack)"
+  echo "  emit <target|--all>        Generate tool-native config"
+  echo "  evolve [--auto]            Process evolution proposals"
+  echo "  kpl <subcommand>           Knowledge persistence layer"
+  echo "  hooks <subcommand>         Hook management"
+  echo "  seams <subcommand>         Seam sync (tool-native configs)"
+  echo "  mcp <subcommand>           MCP server management"
+  echo "  validate                   Validate project.yaml and configs"
+  echo "  budget                     Show token budget usage"
+  echo "  log [--agent] [--since]    Query evolution log"
+  echo "  help                       Show this help"
+  echo
+
+  # Discover command plugins
+  local plugins
+  plugins=$(primer_discover_plugins "commands" 2>/dev/null) || true
+  if [[ -n "$plugins" ]]; then
+    echo -e "${BOLD}Plugins:${RESET}"
+    while IFS= read -r p; do
+      local name; name="$(basename "$p" | sed 's/\.[^.]*$//')"
+      echo "  $name"
+    done <<< "$plugins"
+    echo
+  fi
+
+  echo -e "${BOLD}Options:${RESET}"
+  echo "  --version                  Show version"
+  echo "  --help, -h                 Show help"
+}
+
+# ---------------------------------------------------------------------------
+# Main dispatch
+# ---------------------------------------------------------------------------
+
+main() {
+  [[ $# -eq 0 ]] && { cmd_help; exit 0; }
+
+  local cmd="$1"; shift
+  case "$cmd" in
+    init)       cmd_init "$@" ;;
+    emit)       cmd_emit "$@" ;;
+    evolve)     cmd_evolve "$@" ;;
+    kpl)        cmd_kpl "$@" ;;
+    hooks)      cmd_hooks "$@" ;;
+    seams)      cmd_seams "$@" ;;
+    mcp)        cmd_mcp "$@" ;;
+    validate)   cmd_validate "$@" ;;
+    budget)     cmd_budget "$@" ;;
+    log)        cmd_log "$@" ;;
+    help|--help|-h) cmd_help ;;
+    --version)  echo "primer $Primer_VERSION" ;;
+    *)
+      # Try command plugins
+      local found=""
+      for src in "${Primer_SOURCES[@]}"; do
+        local cdir="$src/plugins/commands"
+        [[ -d "$cdir" ]] || continue
+        for c in "$cdir"/*; do
+          [[ -f "$c" && -x "$c" ]] || continue
+          local name; name="$(basename "$c" | sed 's/\.[^.]*$//')"
+          if [[ "$name" == "$cmd" ]]; then
+            found="$c"
+            break 2
+          fi
+        done
+      done
+      if [[ -n "$found" ]]; then
+        "$found" "$@"
+      else
+        primer_error "Unknown command: $cmd"
+        echo "Run 'primer help' for usage."
+        exit 1
+      fi
+      ;;
+  esac
+}
+
+main "$@"

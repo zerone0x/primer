@@ -1,0 +1,16 @@
+# git-conventions.toml — Team git conventions
+# Claude Code handles git safety natively; this covers commit format and branch naming.
+
+[commit]
+format = "conventional"  # conventional | freeform | jira
+scope_required = false
+max_subject_length = 72
+
+[branch]
+format = "type/description"  # type/description | jira-id/description | freeform
+types = ["feat", "fix", "refactor", "docs", "test", "chore"]
+
+[pr]
+template = true
+require_description = true
+require_test_plan = true
